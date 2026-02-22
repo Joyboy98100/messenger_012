@@ -2,4 +2,5 @@ messenger_01/node_modules
 messenger_02/node_modules
 messenger_01/build
 messenger_02/dist
+messenger_02/uploads/
 .env
