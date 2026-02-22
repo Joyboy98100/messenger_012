@@ -56,17 +56,9 @@ const userDeviceSockets = new Map(); // userId -> Map(deviceId -> socketId)
 /* ---------------- SOCKET.IO ---------------- */
 const io = new Server(httpServer, {
   cors: {
-    origin: (origin, cb) => {
-      // Allow requests with no origin (same-origin, mobile apps, curl)
-      if (!origin) return cb(null, true);
-      const allowed = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (allowed.includes(origin)) return cb(null, true);
-      return cb(new Error(`Socket CORS blocked origin: ${origin}`), false);
-    },
+    origin: true,
     methods: ["GET", "POST"],
+    credentials: true
   },
 });
 
