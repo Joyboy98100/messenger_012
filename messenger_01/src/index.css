@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Global scrollbar and base for messenger theme */
+html {
+  scroll-behavior: smooth;
+}
+body {
+  @apply antialiased;
+}
+/* Subtle scrollbar styling */
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.overflow-y-auto::-webkit-scrollbar-track,
+.overflow-auto::-webkit-scrollbar-track {
+  @apply bg-gray-200 dark:bg-neutral-800/50 rounded-full;
+}
+.overflow-y-auto::-webkit-scrollbar-thumb,
+.overflow-auto::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 dark:bg-neutral-600 rounded-full hover:bg-gray-500 dark:hover:bg-neutral-500;
+}
