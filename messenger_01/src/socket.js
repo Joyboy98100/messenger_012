@@ -1,5 +1,7 @@
 import { io } from "socket.io-client";
 
+console.log("SOCKET URL:", import.meta.env.VITE_SOCKET_URL);
+
 const socket = io(import.meta.env.VITE_SOCKET_URL || "http://localhost:5000", {
   // Connect explicitly after we attach auth + deviceId on login.
   autoConnect: false,
