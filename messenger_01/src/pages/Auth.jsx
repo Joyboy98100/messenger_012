@@ -102,7 +102,7 @@ const Auth = () => {
 
       {/* Auth Box */}
       <div className="relative z-10 flex items-center justify-center h-full">
-        <div className="backdrop-blur-xl bg-white/90 dark:bg-neutral-800/90 border border-gray-200 dark:border-neutral-700 shadow-2xl p-8 md:p-10 rounded-2xl w-full max-w-[400px]">
+        <div className="backdrop-blur-xl bg-white/90 dark:bg-neutral-800/90 border border-gray-200 dark:border-neutral-700 shadow-2xl p-8 md:p-10 rounded-2xl w-[90%] sm:w-[400px] md:w-[450px]">
 
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-neutral-100 text-center mb-2">
             {isLogin ? "Welcome Back" : "Create Account"}
@@ -178,7 +178,7 @@ const Auth = () => {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="p-3.5 rounded-full bg-neutral-700 border border-neutral-600 text-neutral-100 placeholder:text-neutral-400 outline-none w-full focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+              className="p-3.5 rounded-full bg-gray-100 dark:bg-neutral-700 border border-gray-300 dark:border-neutral-600 text-gray-900 dark:text-neutral-100 placeholder:text-gray-400 dark:placeholder:text-neutral-400 outline-none w-full focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
             />
 
             {/* Bio */}
