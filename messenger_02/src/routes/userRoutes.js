@@ -7,13 +7,20 @@ import {
   getDiscoverUsers,
   getContacts,
 } from "../controllers/userController.js";
-import { saveLanguage, getLanguage } from "../controllers/languageController.js";
+
+import {
+  saveLanguage,
+  getLanguage,
+  getAvailableLanguages,
+} from "../controllers/languageController.js";
+
 import { protect } from "../middleware/authMiddleware.js";
 import { checkProfilePhotoPrivacy } from "../middleware/checkProfilePhotoPrivacy.js";
 
 const router = express.Router();
 
-// Language preference (must be before /:userId to avoid conflict)
+// Language preference
+router.get("/languages", protect, getAvailableLanguages);
 router.post("/language", protect, saveLanguage);
 router.get("/language/:userId", protect, getLanguage);
 
