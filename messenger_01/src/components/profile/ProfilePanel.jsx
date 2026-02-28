@@ -5,6 +5,7 @@ import { updateProfile } from "../../api/user";
 import { blockUser, unblockUser, amBlocking } from "../../api/block";
 import SharedMedia from "./SharedMedia";
 import axios from "../../api/axios";
+import { useLanguage } from "../../context/LanguageContext";
 
 const ProfilePanel = ({
   onClose,
@@ -20,6 +21,7 @@ const ProfilePanel = ({
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [isBlocking, setIsBlocking] = useState(false);
   const [languages, setLanguages] = useState([]);
+  const { preferredLanguage, setPreferredLanguage } = useLanguage();
 
   const viewingOther = Boolean(
     selectedUser &&
@@ -41,7 +43,7 @@ const ProfilePanel = ({
   useEffect(() => {
     const fetchLanguages = async () => {
       try {
-        const res = await axios.get("/users/languages");
+        const res = await axios.get("/user/languages");
         setLanguages(res.data.languages);
       } catch (err) {
         console.error("Failed to fetch languages", err);
@@ -50,6 +52,33 @@ const ProfilePanel = ({
 
     fetchLanguages();
   }, []);
+
+  useEffect(() => {
+    if (!viewingOther || !selectedUserId) return;
+    const load = async () => {
+      try {
+        const res = await axios.get(`/user/${selectedUserId}`);
+        const profile = res.data;
+        setUser((prev) => ({
+          ...(prev || {}),
+          ...profile,
+          id: profile.id || profile._id,
+        }));
+        setAvatarPreview(profile.avatar);
+      } catch (err) {
+        console.error("Failed to load user profile", err);
+      }
+    };
+    load();
+  }, [viewingOther, selectedUserId]);
+
+  useEffect(() => {
+    if (viewingOther || !user || !preferredLanguage || editing) return;
+    setUser((prev) => ({
+      ...prev,
+      preferredLanguage: preferredLanguage,
+    }));
+  }, [preferredLanguage, viewingOther, editing, user]);
 
   useEffect(() => {
     if (!viewingOther || !selectedUserId) return;
@@ -88,6 +117,9 @@ const ProfilePanel = ({
       localStorage.setItem("user", JSON.stringify(res.data));
       setUser(res.data);
       setAvatarPreview(res.data.avatar);
+      if (res.data?.preferredLanguage) {
+        setPreferredLanguage(res.data.preferredLanguage);
+      }
       setEditing(false);
     } catch (err) {
       alert("Failed to update profile");

@@ -1974,10 +1974,16 @@ const Home = () => {
                       hideProfilePhoto={blockedByThem}
                       onOpenProfile={() => {
                         if (activeChat.isGroup) {
-                          setActivePanel("groupProfile");
+                          setActivePanel((prev) =>
+                            prev === "groupProfile" ? null : "groupProfile"
+                          );
                         } else {
                           setProfilePanelShowSelf(false);
-                          setActivePanel("profile");
+                          setActivePanel((prev) =>
+                            prev === "profile" && !profilePanelShowSelf
+                              ? null
+                              : "profile"
+                          );
                         }
                       }}
                       isBlocking={blockedByMe}
