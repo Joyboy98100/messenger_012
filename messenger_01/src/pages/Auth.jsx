@@ -30,9 +30,17 @@ const Auth = () => {
   };
 
   useEffect(() => {
-  const token = localStorage.getItem("token");
-  if (token) navigate("/home");
-}, []);
+    const token = localStorage.getItem("token");
+    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+
+    if (!token || !storedUser) return;
+
+    if (storedUser.role === "admin" || storedUser.role === "superadmin") {
+      navigate("/admin/dashboard");
+    } else {
+      navigate("/home");
+    }
+  }, []);
 
 
   /* SUBMIT */
@@ -47,10 +55,19 @@ const Auth = () => {
           password,
         });
 
-        localStorage.setItem("token", res.data.token);
-        localStorage.setItem("user", JSON.stringify(res.data.user));
+        const loggedInUser = res.data.user;
 
-        navigate("/home");
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("user", JSON.stringify(loggedInUser));
+
+        if (
+          loggedInUser?.role === "admin" ||
+          loggedInUser?.role === "superadmin"
+        ) {
+          navigate("/admin/dashboard");
+        } else {
+          navigate("/home");
+        }
       } else {
         const formData = new FormData();
 
@@ -75,14 +92,6 @@ const Auth = () => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    navigate("/home");
-  }
-}, []);
-
 
   return (
     <div className="relative h-screen w-full overflow-hidden">
