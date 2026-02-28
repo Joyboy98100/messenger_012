@@ -2,6 +2,11 @@ import { Routes, Route } from "react-router-dom";
 import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import AdminRoute from "./components/admin/AdminRoute";
+import AdminLayout from "./components/admin/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminReports from "./pages/admin/AdminReports";
 import { ToastProvider } from "./context/ToastContext";
 import { DarkModeProvider } from "./context/DarkModeContext";
 import { NotificationProvider } from "./context/NotificationContext";
@@ -33,6 +38,19 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
+              <Route
+                path="/admin/*"
+                element={
+                  <AdminRoute>
+                    <AdminLayout />
+                  </AdminRoute>
+                }
+              >
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="reports" element={<AdminReports />} />
+              </Route>
             </Routes>
                 </NotificationProvider>
                 </CallNotificationProvider>

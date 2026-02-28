@@ -24,6 +24,8 @@ import blockRoutes from "./routes/blockRoutes.js";
 import groupRoutes from "./routes/groupRoutes.js";
 import scheduledMessageRoutes from "./routes/scheduledMessageRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 
 import {
   handleUserOnline,
@@ -108,6 +110,8 @@ app.use("/api/translate", translateRoutes);
 app.use("/api/block", blockRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/scheduled-messages", scheduledMessageRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/reports", reportRoutes);
 
 /* ---------------- ROOT ---------------- */
 app.get("/", (req, res) => {
@@ -800,35 +804,6 @@ async function startServer() {
     await mongoose.connect(process.env.MONGO_URI);
 
     console.log("MongoDB Atlas connected");
-
-    // Ensure a default admin user exists (for initial login)
-    try {
-      const adminEmail =
-        process.env.ADMIN_EMAIL || "admin@example.com";
-      const adminUsername =
-        process.env.ADMIN_USERNAME || "admin";
-      const adminPassword =
-        process.env.ADMIN_PASSWORD || "Admin@1234";
-
-      const existingAdmin = await User.findOne({
-        email: adminEmail,
-      });
-
-      if (!existingAdmin) {
-        const adminUser = new User({
-          username: adminUsername,
-          email: adminEmail,
-          password: adminPassword,
-          role: "admin",
-        });
-        await adminUser.save();
-        console.log(
-          `Default admin created. Email: ${adminEmail}, Username: ${adminUsername}`
-        );
-      }
-    } catch (seedErr) {
-      console.error("Failed to ensure default admin user:", seedErr);
-    }
 
     httpServer.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

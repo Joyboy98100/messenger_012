@@ -87,9 +87,9 @@ export const login = async (req, res) => {
     if (!isMatch)
       return res.status(400).json({ message: "Invalid credentials" });
 
-    // Create token
+    // Create token (include jwtVersion for force-logout support)
     const token = jwt.sign(
-      { id: user._id },
+      { id: user._id, jwtVersion: user.jwtVersion || 0 },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );

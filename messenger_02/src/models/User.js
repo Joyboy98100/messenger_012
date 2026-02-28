@@ -32,6 +32,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "en",
     },
+    jwtVersion: {
+      type: Number,
+      default: 0,
+    },
     isOnline: {
       type: Boolean,
       default: false,
