@@ -31,15 +31,10 @@ const Auth = () => {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const storedUser = JSON.parse(localStorage.getItem("user") || "null");
-
-    if (!token || !storedUser) return;
-
-    if (storedUser.role === "admin" || storedUser.role === "superadmin") {
-      navigate("/admin/dashboard");
-    } else {
-      navigate("/home");
-    }
+    if (!token) return;
+    // If user is already logged in and opens Auth (e.g., via back button),
+    // send them to the normal home page regardless of role.
+    navigate("/home");
   }, []);
 
 

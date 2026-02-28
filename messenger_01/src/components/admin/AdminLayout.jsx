@@ -4,6 +4,12 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 const AdminLayout = () => {
   const navigate = useNavigate();
 
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/", { replace: true });
+  };
+
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-neutral-900">
       <aside className="w-64 bg-white dark:bg-neutral-800 border-r border-gray-200 dark:border-neutral-700 flex flex-col">
@@ -13,10 +19,10 @@ const AdminLayout = () => {
           </span>
           <button
             type="button"
-            onClick={() => navigate("/home")}
-            className="text-xs text-gray-500 dark:text-neutral-300 hover:underline"
+            onClick={handleLogout}
+            className="text-xs text-red-600 dark:text-red-300 hover:underline"
           >
-            Back
+            Logout
           </button>
         </div>
         <nav className="flex-1 px-2 space-y-1">
