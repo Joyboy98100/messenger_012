@@ -37,6 +37,7 @@ import Call from "./models/Call.js";
 import Notification from "./models/Notification.js";
 import { processScheduledMessages } from "./controllers/scheduledMessageController.js";
 import { processSelfDestructingGroups } from "./controllers/groupDestructController.js";
+import User from "./models/User.js";
 
 dotenv.config();
 
@@ -799,6 +800,35 @@ async function startServer() {
     await mongoose.connect(process.env.MONGO_URI);
 
     console.log("MongoDB Atlas connected");
+
+    // Ensure a default admin user exists (for initial login)
+    try {
+      const adminEmail =
+        process.env.ADMIN_EMAIL || "admin@example.com";
+      const adminUsername =
+        process.env.ADMIN_USERNAME || "admin";
+      const adminPassword =
+        process.env.ADMIN_PASSWORD || "Admin@1234";
+
+      const existingAdmin = await User.findOne({
+        email: adminEmail,
+      });
+
+      if (!existingAdmin) {
+        const adminUser = new User({
+          username: adminUsername,
+          email: adminEmail,
+          password: adminPassword,
+          role: "admin",
+        });
+        await adminUser.save();
+        console.log(
+          `Default admin created. Email: ${adminEmail}, Username: ${adminUsername}`
+        );
+      }
+    } catch (seedErr) {
+      console.error("Failed to ensure default admin user:", seedErr);
+    }
 
     httpServer.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

@@ -35,7 +35,7 @@ export const registerUser = async (req, res) => {
       avatarUrl = uploadRes.secure_url;
     }
 
-    // Create user
+    // Create user (regular user by default)
     const user = new User({
       username,
       email,
@@ -43,6 +43,7 @@ export const registerUser = async (req, res) => {
       bio,
       preferredLanguage,
       avatar: avatarUrl,
+      role: "user",
     });
 
     await user.save();
@@ -101,6 +102,7 @@ export const login = async (req, res) => {
       bio: user.bio,
       avatar: user.avatar,
       preferredLanguage: user.preferredLanguage,
+      role: user.role,
     };
 
     res.json({
