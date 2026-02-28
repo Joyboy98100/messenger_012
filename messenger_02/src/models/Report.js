@@ -17,6 +17,11 @@ const reportSchema = new mongoose.Schema(
       required: true,
       maxlength: 500,
     },
+    severity: {
+      type: String,
+      enum: ["low", "medium", "high", "spam", "abuse", "threat"],
+      default: "low",
+    },
     status: {
       type: String,
       enum: ["open", "reviewed", "action_taken", "dismissed"],

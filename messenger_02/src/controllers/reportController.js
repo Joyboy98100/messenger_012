@@ -26,15 +26,66 @@ export const createReport = async (req, res) => {
   }
 };
 
+export const getReportStats = async (req, res) => {
+  try {
+    const [total, open, actionTaken, dismissed, highSeverity] = await Promise.all([
+      Report.countDocuments({}),
+      Report.countDocuments({ status: "open" }),
+      Report.countDocuments({ status: "action_taken" }),
+      Report.countDocuments({ status: "dismissed" }),
+      Report.countDocuments({ severity: { $in: ["high", "threat", "abuse"] } }),
+    ]);
+    return res.json({
+      total,
+      open,
+      actionTaken,
+      dismissed,
+      highSeverity,
+    });
+  } catch (err) {
+    console.error("GET REPORT STATS ERROR:", err);
+    return res.status(500).json({ message: "Failed to load report stats" });
+  }
+};
+
 export const getReports = async (req, res) => {
   try {
-    const reports = await Report.find({})
-      .populate("reporterId", "username email")
-      .populate("messageId", "text sender createdAt")
-      .sort({ createdAt: -1 })
-      .lean();
+    const page = Math.max(parseInt(req.query.page || "1", 10), 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || "20", 10), 1), 100);
+    const status = req.query.status?.trim();
+    const severity = req.query.severity?.trim();
+    const search = (req.query.search || "").trim();
 
-    return res.json(reports);
+    const filter = {};
+    if (status) filter.status = status;
+    if (severity) filter.severity = severity;
+    if (search) {
+      filter.$or = [
+        { reason: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const [reports, total] = await Promise.all([
+      Report.find(filter)
+        .populate("reporterId", "username email")
+        .populate({
+          path: "messageId",
+          select: "text sender createdAt",
+          populate: { path: "sender", select: "username" },
+        })
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Report.countDocuments(filter),
+    ]);
+
+    return res.json({
+      reports,
+      page,
+      totalPages: Math.ceil(total / limit),
+      total,
+    });
   } catch (err) {
     console.error("GET REPORTS ERROR:", err);
     return res.status(500).json({ message: "Failed to load reports" });

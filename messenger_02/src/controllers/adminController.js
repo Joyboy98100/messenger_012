@@ -29,6 +29,36 @@ export const getDashboardStats = async (req, res) => {
   }
 };
 
+export const getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId)
+      .select("username email role bio avatar isOnline lastSeen createdAt isBanned")
+      .lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const [totalMessages, reportsResult] = await Promise.all([
+      Message.countDocuments({ sender: user._id }),
+      Report.aggregate([
+        { $lookup: { from: "messages", localField: "messageId", foreignField: "_id", as: "msg" } },
+        { $unwind: "$msg" },
+        { $match: { "msg.sender": user._id } },
+        { $count: "count" },
+      ]),
+    ]);
+
+    const reportsCount = reportsResult[0]?.count ?? 0;
+
+    return res.json({
+      ...user,
+      totalMessages,
+      reportsCount,
+    });
+  } catch (err) {
+    console.error("ADMIN GET USER ERROR:", err);
+    return res.status(500).json({ message: "Failed to load user" });
+  }
+};
+
 export const getUsers = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page || "1", 10), 1);
@@ -45,11 +75,20 @@ export const getUsers = async (req, res) => {
         { email: { $regex: search, $options: "i" } },
       ];
     }
+    const role = req.query.role?.trim();
+    if (role) filter.role = role;
+    const status = req.query.status?.trim();
+    if (status === "banned") filter.isBanned = true;
+    else if (status === "active") filter.isBanned = { $ne: true };
+
+    const sortBy = req.query.sort || "createdAt";
+    const sortOrder = req.query.order === "asc" ? 1 : -1;
+    const sortObj = { [sortBy]: sortOrder };
 
     const [items, total] = await Promise.all([
       User.find(filter)
-        .select("username email role isOnline lastSeen createdAt")
-        .sort({ createdAt: -1 })
+        .select("username email role isOnline lastSeen createdAt isBanned avatar bio")
+        .sort(sortObj)
         .skip((page - 1) * limit)
         .limit(limit)
         .lean(),

@@ -43,6 +43,14 @@ const userSchema = new mongoose.Schema(
     lastSeen: {
       type: Date,
     },
+    isBanned: {
+      type: Boolean,
+      default: false,
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

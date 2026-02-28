@@ -1,6 +1,15 @@
 import React from "react";
 
-const ConfirmModal = ({ open, title, message, onConfirm, onCancel }) => {
+const ConfirmModal = ({
+  open,
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  destructive = true,
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
+}) => {
   if (!open) return null;
 
   return (
@@ -18,14 +27,18 @@ const ConfirmModal = ({ open, title, message, onConfirm, onCancel }) => {
             onClick={onCancel}
             className="rounded-xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700"
           >
-            Cancel
+            {cancelLabel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            className={`rounded-xl px-4 py-2 text-sm font-medium text-white ${
+              destructive
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-emerald-600 hover:bg-emerald-700"
+            }`}
           >
-            Confirm
+            {confirmLabel}
           </button>
         </div>
       </div>

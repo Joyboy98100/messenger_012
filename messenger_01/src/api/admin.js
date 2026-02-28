@@ -2,10 +2,13 @@ import axios from "./axios";
 
 export const getAdminDashboard = () => axios.get("/admin/dashboard");
 
-export const getAdminUsers = (page = 1, search = "", limit = 20) =>
+export const getAdminUsers = (page = 1, search = "", limit = 20, role = "", status = "", sort = "createdAt", order = "desc") =>
   axios.get("/admin/users", {
-    params: { page, search, limit },
+    params: { page, search, limit, role, status, sort, order },
   });
+
+export const getAdminUserById = (userId) =>
+  axios.get(`/admin/users/${userId}`);
 
 export const banUser = (userId) =>
   axios.post(`/admin/users/${userId}/ban`);
@@ -19,7 +22,12 @@ export const deactivateUser = (userId) =>
 export const forceLogoutUser = (userId) =>
   axios.post(`/admin/users/${userId}/force-logout`);
 
-export const getAdminReports = () => axios.get("/admin/reports");
+export const getAdminReports = (page = 1, limit = 20, status = "", severity = "", search = "") =>
+  axios.get("/admin/reports", {
+    params: { page, limit, status, severity, search },
+  });
+
+export const getAdminReportStats = () => axios.get("/admin/reports/stats");
 
 export const handleAdminReport = (reportId, action) =>
   axios.post(`/admin/reports/${reportId}/action`, { action });
