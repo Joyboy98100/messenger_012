@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useToastContext } from "../../context/ToastContext";
 import {
   getAdminUsers,
   getAdminUserById,
@@ -16,6 +17,7 @@ import SideDrawer from "../../components/admin/ui/SideDrawer";
 import { Users, Search, RotateCcw, ChevronRight } from "lucide-react";
 
 const AdminUsers = () => {
+  const toast = useToastContext();
   const [users, setUsers] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -75,15 +77,24 @@ const AdminUsers = () => {
     if (!pendingAction) return;
     const { action, user } = pendingAction;
     try {
-      if (action === "ban") await banUser(user._id);
-      else if (action === "unban") await unbanUser(user._id);
-      else if (action === "deactivate") await deactivateUser(user._id);
-      else if (action === "forceLogout") await forceLogoutUser(user._id);
+      if (action === "ban") {
+        await banUser(user._id);
+        toast.success("User banned");
+      } else if (action === "unban") {
+        await unbanUser(user._id);
+        toast.success("User unbanned");
+      } else if (action === "deactivate") {
+        await deactivateUser(user._id);
+        toast.success("User deactivated");
+      } else if (action === "forceLogout") {
+        await forceLogoutUser(user._id);
+        toast.success("User logged out");
+      }
       await load(page);
       setDrawerUser(null);
     } catch (err) {
       console.error(err);
-      alert("Action failed");
+      toast.error(err.response?.data?.message || "Action failed");
     } finally {
       closeConfirm();
     }
@@ -99,11 +110,12 @@ const AdminUsers = () => {
         else if (action === "forceLogout") await forceLogoutUser(id);
       }
       setSelectedIds(new Set());
+      toast.success(`Bulk ${action} completed for ${ids.length} user(s)`);
       await load(page);
       setDrawerUser(null);
     } catch (err) {
       console.error(err);
-      alert("Bulk action failed");
+      toast.error(err.response?.data?.message || "Bulk action failed");
     }
   };
 
@@ -117,7 +129,7 @@ const AdminUsers = () => {
   };
 
   const toggleSelectAll = () => {
-    const actives = users.filter((u) => u.role !== "admin" && u.role !== "superadmin");
+    const actives = users.filter((u) => u.role !== "admin");
     if (selectedIds.size >= actives.length) setSelectedIds(new Set());
     else setSelectedIds(new Set(actives.map((u) => u._id)));
   };
@@ -141,7 +153,7 @@ const AdminUsers = () => {
     return "online";
   };
 
-  const selectableUsers = users.filter((u) => u.role !== "admin" && u.role !== "superadmin");
+  const selectableUsers = users.filter((u) => u.role !== "admin");
 
   return (
     <div className="p-6">
@@ -173,7 +185,6 @@ const AdminUsers = () => {
           <option value="">All roles</option>
           <option value="user">User</option>
           <option value="admin">Admin</option>
-          <option value="superadmin">Superadmin</option>
         </select>
         <select
           value={status}
@@ -290,7 +301,7 @@ const AdminUsers = () => {
                     className="border-t border-gray-100 dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-700/50 transition-colors"
                   >
                     <td className="px-4 py-3">
-                      {u.role !== "admin" && u.role !== "superadmin" && (
+                      {u.role !== "admin" && (
                         <input
                           type="checkbox"
                           checked={selectedIds.has(u._id)}
@@ -319,7 +330,7 @@ const AdminUsers = () => {
                       <StatusBadge status={getStatus(u)} />
                     </td>
                     <td className="px-4 py-3 text-right space-x-2">
-                      {u.role !== "admin" && u.role !== "superadmin" && (
+                      {u.role !== "admin" && (
                         <>
                           {u.isBanned ? (
                             <button
@@ -451,7 +462,7 @@ const AdminUsers = () => {
                 </div>
               )}
             </dl>
-            {drawerUser.role !== "admin" && drawerUser.role !== "superadmin" && (
+            {drawerUser.role !== "admin" && (
               <div className="pt-4 flex flex-wrap gap-2">
                 {drawerUser.isBanned ? (
                   <button

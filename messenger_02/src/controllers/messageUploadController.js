@@ -5,34 +5,50 @@ import FriendRequest from "../models/FriendRequest.js";
 // POST /api/messages/upload
 export const uploadFile = async (req, res) => {
   try {
-    const { senderId, receiverId, messageType } = req.body;
+    const { senderId, receiverId, groupId, messageType } = req.body;
 
-    if (!senderId || !receiverId || !req.file) {
+    if (!senderId || !req.file) {
       return res
         .status(400)
-        .json({ message: "senderId, receiverId and file are required" });
+        .json({ message: "senderId and file are required" });
     }
 
-    if (
-      !mongoose.Types.ObjectId.isValid(senderId) ||
-      !mongoose.Types.ObjectId.isValid(receiverId)
-    ) {
-      return res.status(400).json({ message: "Invalid user IDs" });
+    const isGroup = !!groupId;
+    if (!isGroup && !receiverId) {
+      return res.status(400).json({ message: "receiverId or groupId is required" });
     }
 
-    // Ensure users are friends (reuse same rule as text messages)
-    const friendship = await FriendRequest.findOne({
-      status: "accepted",
-      $or: [
-        { sender: senderId, receiver: receiverId },
-        { sender: receiverId, receiver: senderId },
-      ],
-    }).lean();
+    if (!mongoose.Types.ObjectId.isValid(senderId)) {
+      return res.status(400).json({ message: "Invalid sender ID" });
+    }
 
-    if (!friendship) {
-      return res
-        .status(403)
-        .json({ message: "You can only send media to friends" });
+    if (isGroup) {
+      if (!mongoose.Types.ObjectId.isValid(groupId)) {
+        return res.status(400).json({ message: "Invalid group ID" });
+      }
+      const Group = (await import("../models/Group.js")).default;
+      const group = await Group.findById(groupId);
+      if (!group) return res.status(404).json({ message: "Group not found" });
+      const isMember = group.members?.some(
+        (m) => String(m.user || m) === String(senderId)
+      );
+      if (!isMember) {
+        return res.status(403).json({ message: "You must be a group member to send media" });
+      }
+    } else {
+      if (!mongoose.Types.ObjectId.isValid(receiverId)) {
+        return res.status(400).json({ message: "Invalid receiver ID" });
+      }
+      const friendship = await FriendRequest.findOne({
+        status: "accepted",
+        $or: [
+          { sender: senderId, receiver: receiverId },
+          { sender: receiverId, receiver: senderId },
+        ],
+      }).lean();
+      if (!friendship) {
+        return res.status(403).json({ message: "You can only send media to friends" });
+      }
     }
 
     let type = "file";
@@ -47,7 +63,8 @@ export const uploadFile = async (req, res) => {
 
     const message = new Message({
       sender: senderId,
-      receiver: receiverId,
+      receiver: isGroup ? undefined : receiverId,
+      group: isGroup ? groupId : undefined,
       messageType: type,
       type: type,
       fileUrl,
@@ -58,38 +75,44 @@ export const uploadFile = async (req, res) => {
 
     const savedMessage = await message.save();
 
-    // Emit to receiver so they see the message in chat, and new_message to both for Shared Media
     try {
       const io = req.app.get("io");
       const onlineUsers = req.app.get("onlineUsers") || {};
       if (io) {
         const messagePayload = savedMessage.toObject ? savedMessage.toObject() : { ...savedMessage };
-        const receiverSocket = onlineUsers[String(receiverId)];
-        if (receiverSocket) {
-          io.to(receiverSocket).emit("receiveMessage", {
+        if (isGroup) {
+          io.to(String(groupId)).emit("receiveMessage", {
             senderId: String(senderId),
+            groupId: String(groupId),
             message: messagePayload,
           });
+        } else {
+          const receiverSocket = onlineUsers[String(receiverId)];
+          if (receiverSocket) {
+            io.to(receiverSocket).emit("receiveMessage", {
+              senderId: String(senderId),
+              message: messagePayload,
+            });
+          }
+          const newMessagePayload = {
+            _id: savedMessage._id,
+            senderId: String(savedMessage.sender),
+            receiverId: String(savedMessage.receiver),
+            messageType: savedMessage.messageType || savedMessage.type,
+            fileUrl: savedMessage.fileUrl,
+            fileName: savedMessage.fileName,
+            fileSize: savedMessage.fileSize,
+            text: savedMessage.text || "",
+            createdAt: savedMessage.createdAt,
+          };
+          io.to(String(receiverId)).emit("new_message", newMessagePayload);
+          io.to(String(senderId)).emit("new_message", newMessagePayload);
         }
-        const newMessagePayload = {
-          _id: savedMessage._id,
-          senderId: String(savedMessage.sender),
-          receiverId: String(savedMessage.receiver),
-          messageType: savedMessage.messageType || savedMessage.type,
-          fileUrl: savedMessage.fileUrl,
-          fileName: savedMessage.fileName,
-          fileSize: savedMessage.fileSize,
-          text: savedMessage.text || "",
-          createdAt: savedMessage.createdAt,
-        };
-        io.to(String(receiverId)).emit("new_message", newMessagePayload);
-        io.to(String(senderId)).emit("new_message", newMessagePayload);
       }
     } catch (err) {
       console.error("Error emitting for upload:", err);
     }
 
-    // Ensure response also has fully-qualified URL
     const response = {
       ...savedMessage.toObject(),
       fileUrl,

@@ -806,7 +806,7 @@ async function startServer() {
 
     console.log("MongoDB Atlas connected");
 
-    // Ensure default admin and superadmin users exist (for initial login)
+    // Ensure default admin user exists (for initial login)
     try {
       const adminEmail =
         process.env.ADMIN_EMAIL || "admin@example.com";
@@ -815,25 +815,12 @@ async function startServer() {
       const adminPassword =
         process.env.ADMIN_PASSWORD || "Admin@1234";
 
-      const superEmail =
-        process.env.SUPERADMIN_EMAIL || "superadmin@example.com";
-      const superUsername =
-        process.env.SUPERADMIN_USERNAME || "superadmin";
-      const superPassword =
-        process.env.SUPERADMIN_PASSWORD || "SuperAdmin@1234";
-
       const usersToEnsure = [
         {
           email: adminEmail,
           username: adminUsername,
           password: adminPassword,
           role: "admin",
-        },
-        {
-          email: superEmail,
-          username: superUsername,
-          password: superPassword,
-          role: "superadmin",
         },
       ];
 

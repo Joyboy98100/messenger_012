@@ -1,24 +1,31 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getFriends } from "../../api/friends";
+import { useToastContext } from "../../context/ToastContext";
 
 const ForwardModal = ({ isOpen, onClose, onConfirm }) => {
+  const toast = useToastContext();
   const [friends, setFriends] = useState([]);
   const [selected, setSelected] = useState({});
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
+    setSelected({});
     const load = async () => {
+      setLoading(true);
       try {
         const res = await getFriends();
-        setFriends(res.data);
+        setFriends(res.data || []);
       } catch (err) {
         console.error("Failed to load friends for forward", err);
+        toast.error("Failed to load contacts");
+      } finally {
+        setLoading(false);
       }
     };
     load();
-    setSelected({});
-  }, [isOpen]);
+  }, [isOpen, toast]);
 
   const toggle = (id) => {
     setSelected((prev) => ({
@@ -55,7 +62,14 @@ const ForwardModal = ({ isOpen, onClose, onConfirm }) => {
             Forward message
           </h3>
           <div className="max-h-64 overflow-y-auto space-y-1 mb-4">
-            {friends.map((f) => (
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <svg className="animate-spin h-6 w-6 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              </div>
+            ) : friends.map((f) => (
               <label
                 key={f._id}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-neutral-700 cursor-pointer text-sm transition-colors"
@@ -71,7 +85,7 @@ const ForwardModal = ({ isOpen, onClose, onConfirm }) => {
                 </span>
               </label>
             ))}
-            {friends.length === 0 && (
+            {!loading && friends.length === 0 && (
               <p className="text-sm text-neutral-400 px-3">
                 No friends to forward to.
               </p>

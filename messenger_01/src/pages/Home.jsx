@@ -62,6 +62,7 @@ const Home = () => {
   const [activeView, setActiveView] = useState("chats"); // chats, contacts, calls
   const [createGroupModalOpen, setCreateGroupModalOpen] = useState(false);
   const [scheduleMessageModalOpen, setScheduleMessageModalOpen] = useState(false);
+  const [scheduleText, setScheduleText] = useState("");
   const [messages, setMessages] = useState({});
   const [typingUser, setTypingUser] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -1346,9 +1347,12 @@ const Home = () => {
 
     const senderId = saved.sender;
     const receiverId = saved.receiver;
+    const groupId = saved.group;
 
     const isOwn = String(senderId) === String(userId);
-    const convoId = String(isOwn ? receiverId : senderId);
+    const convoId = groupId
+      ? String(groupId)
+      : String(isOwn ? receiverId : senderId);
 
     const messageType = saved.messageType || saved.type || "file";
     const messageObj = {
@@ -1742,35 +1746,42 @@ const Home = () => {
     };
   }, [activeChat]);
 
-  /* FILE DROP */
-  const handleDrop = (e) => {
+  /* FILE DROP - upload and add to chat */
+  const handleDrop = async (e) => {
     e.preventDefault();
     if (!activeChat) return;
 
     const file = e.dataTransfer.files[0];
     if (!file) return;
 
-    const fileURL = URL.createObjectURL(file);
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    const userId = user?.id || user?._id;
+    if (!userId) return;
 
-    const newMessage = {
-      type: file.type.startsWith("image")
-        ? "image"
-        : file.type.startsWith("video")
-        ? "video"
-        : "file",
-      file: fileURL,
-      isOwn: true,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
+    const isGroup = !!activeChat.isGroup;
+    let messageType = "file";
+    if (file.type.startsWith("image/")) messageType = "image";
+    else if (file.type.startsWith("video/")) messageType = "video";
 
-    const conversationId = String(activeChat._id);
-    setMessages((prev) => ({
-      ...prev,
-      [conversationId]: [...(prev[conversationId] || []), newMessage],
-    }));
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("senderId", userId);
+    if (isGroup) {
+      formData.append("groupId", activeChat._id);
+    } else {
+      formData.append("receiverId", activeChat._id);
+    }
+    formData.append("messageType", messageType);
+
+    try {
+      const res = await axios.post("/messages/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      handleMediaMessage(res.data);
+    } catch (err) {
+      console.error("Drop upload failed", err);
+      toast.error(err.response?.data?.message || "Failed to upload file");
+    }
   };
 
   return (
@@ -1847,8 +1858,16 @@ const Home = () => {
                   </svg>
                 </div>
               ) : activeView === "chats" && recentChats.length === 0 && groups.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-neutral-400">
-                  <p>No chats yet</p>
+                <div className="text-center py-8 px-4">
+                  <p className="text-gray-500 dark:text-neutral-400 mb-2">No chats yet</p>
+                  <p className="text-sm text-gray-400 dark:text-neutral-500">Add contacts or create a group to start messaging</p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveView("contacts")}
+                    className="mt-3 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium"
+                  >
+                    View Contacts
+                  </button>
                 </div>
               ) : activeView === "contacts" && contacts.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 dark:text-neutral-400">
@@ -1992,8 +2011,10 @@ const Home = () => {
                         try {
                           await blockUser(activeChat._id);
                           setBlockedByMe(true);
+                          toast.success("User blocked");
                         } catch (e) {
                           console.error("Block failed:", e);
+                          toast.error(e.response?.data?.message || "Failed to block");
                         }
                       }}
                       onUnblock={async () => {
@@ -2001,8 +2022,10 @@ const Home = () => {
                         try {
                           await unblockUser(activeChat._id);
                           setBlockedByMe(false);
+                          toast.success("User unblocked");
                         } catch (e) {
                           console.error("Unblock failed:", e);
+                          toast.error(e.response?.data?.message || "Failed to unblock");
                         }
                       }}
                       onSearchSelectMessage={handleSearchSelectMessage}
@@ -2135,8 +2158,12 @@ const Home = () => {
                           onSend={handleSendMessage}
                           onMediaMessage={handleMediaMessage}
                           activeChatId={activeChat._id}
+                          isGroup={!!activeChat.isGroup}
                           disabled={sendingMessage}
-                          onSchedule={() => setScheduleMessageModalOpen(true)}
+                          onSchedule={(text) => {
+                            setScheduleText(text || "");
+                            setScheduleMessageModalOpen(true);
+                          }}
                         />
                       </div>
                     )}
@@ -2295,8 +2322,16 @@ const Home = () => {
                       </svg>
                     </div>
                   ) : activeView === "chats" && recentChats.length === 0 && groups.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 dark:text-neutral-400">
-                      <p>No chats yet</p>
+                    <div className="text-center py-8 px-4">
+                      <p className="text-gray-500 dark:text-neutral-400 mb-2">No chats yet</p>
+                      <p className="text-sm text-gray-400 dark:text-neutral-500">Add contacts or create a group to start messaging</p>
+                      <button
+                        type="button"
+                        onClick={() => { setActiveView("contacts"); setSidebarOpen(false); }}
+                        className="mt-3 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium"
+                      >
+                        View Contacts
+                      </button>
                     </div>
                   ) : activeView === "contacts" && contacts.length === 0 ? (
                     <div className="text-center py-8 text-gray-500 dark:text-neutral-400">
@@ -2414,7 +2449,7 @@ const Home = () => {
       <CreateGroupModal
         isOpen={createGroupModalOpen}
         onClose={() => setCreateGroupModalOpen(false)}
-        friends={friends}
+        friends={contacts.length > 0 ? contacts : friends}
         onGroupCreated={(group) => {
           setGroups((prev) => [group, ...prev]);
           setActiveChat({ ...group, isGroup: true });
@@ -2422,10 +2457,13 @@ const Home = () => {
       />
       <ScheduleMessageModal
         isOpen={scheduleMessageModalOpen}
-        onClose={() => setScheduleMessageModalOpen(false)}
+        onClose={() => {
+          setScheduleMessageModalOpen(false);
+          setScheduleText("");
+        }}
         receiverId={activeChat && !activeChat.isGroup ? activeChat._id : undefined}
         groupId={activeChat && activeChat.isGroup ? activeChat._id : undefined}
-        initialText=""
+        initialText={scheduleText}
         onScheduled={(scheduledMsg, scheduledDateTime) => {
           const when = scheduledDateTime instanceof Date ? scheduledDateTime : (scheduledMsg?.scheduledFor ? new Date(scheduledMsg.scheduledFor) : null);
           if (when && !Number.isNaN(when.getTime())) {

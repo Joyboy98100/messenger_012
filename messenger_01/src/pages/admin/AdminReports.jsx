@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useToastContext } from "../../context/ToastContext";
 import {
   getAdminReports,
   getAdminReportStats,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 
 const AdminReports = () => {
+  const toast = useToastContext();
   const [reports, setReports] = useState([]);
   const [stats, setStats] = useState(null);
   const [page, setPage] = useState(1);
@@ -90,11 +92,12 @@ const AdminReports = () => {
     if (!pending) return;
     try {
       await handleAdminReport(pending.report._id, pending.action);
+      toast.success("Report action completed");
       await loadReports(page);
       await loadStats();
     } catch (err) {
       console.error(err);
-      alert("Action failed");
+      toast.error(err.response?.data?.message || "Action failed");
     } finally {
       close();
     }

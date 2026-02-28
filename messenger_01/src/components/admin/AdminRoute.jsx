@@ -10,7 +10,7 @@ const AdminRoute = ({ children }) => {
     return <Navigate to="/" replace />;
   }
 
-  if (role !== "admin" && role !== "superadmin") {
+  if (role !== "admin") {
     return <Navigate to="/home" replace />;
   }
 

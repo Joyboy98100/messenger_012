@@ -2,10 +2,12 @@ import React, { useRef, useState, useEffect } from "react";
 import { Clock } from "lucide-react";
 import socket from "../../socket";
 import axios from "../../api/axios";
+import { useToastContext } from "../../context/ToastContext";
 
 const TYPING_IDLE_MS = 1000;
 
-const MessageInput = ({ onSend, onMediaMessage, activeChatId, disabled = false, onSchedule }) => {
+const MessageInput = ({ onSend, onMediaMessage, activeChatId, isGroup = false, disabled = false, onSchedule }) => {
+  const toast = useToastContext();
   const fileRef = useRef();
   const menuRef = useRef();
   const typingTimeoutRef = useRef(null);
@@ -37,7 +39,11 @@ const MessageInput = ({ onSend, onMediaMessage, activeChatId, disabled = false, 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("senderId", senderId);
-    formData.append("receiverId", activeChatId);
+    if (isGroup) {
+      formData.append("groupId", activeChatId);
+    } else {
+      formData.append("receiverId", activeChatId);
+    }
     formData.append("messageType", messageType);
 
     try {
@@ -47,12 +53,12 @@ const MessageInput = ({ onSend, onMediaMessage, activeChatId, disabled = false, 
 
       const saved = res.data;
 
-      // Update local chat immediately for sender
       if (onMediaMessage) {
         onMediaMessage(saved);
       }
     } catch (err) {
       console.error("Failed to upload media", err);
+      toast.error(err.response?.data?.message || "Failed to upload file");
     } finally {
       // Reset input so same file can be chosen again
       e.target.value = "";
@@ -85,7 +91,11 @@ const MessageInput = ({ onSend, onMediaMessage, activeChatId, disabled = false, 
         const formData = new FormData();
         formData.append("file", file);
         formData.append("senderId", senderId);
-        formData.append("receiverId", activeChatId);
+        if (isGroup) {
+          formData.append("groupId", activeChatId);
+        } else {
+          formData.append("receiverId", activeChatId);
+        }
         formData.append("messageType", "image");
 
         try {
@@ -98,10 +108,12 @@ const MessageInput = ({ onSend, onMediaMessage, activeChatId, disabled = false, 
           }
         } catch (err) {
           console.error("Failed to upload camera image", err);
+          toast.error(err.response?.data?.message || "Failed to upload image");
         }
       }, "image/jpeg");
     } catch (err) {
       console.error("Camera access error", err);
+      toast.error("Camera access denied or failed");
     } finally {
       setShowMenu(false);
     }
@@ -146,7 +158,11 @@ const MessageInput = ({ onSend, onMediaMessage, activeChatId, disabled = false, 
         const formData = new FormData();
         formData.append("file", file);
         formData.append("senderId", senderId);
-        formData.append("receiverId", activeChatId);
+        if (isGroup) {
+          formData.append("groupId", activeChatId);
+        } else {
+          formData.append("receiverId", activeChatId);
+        }
         formData.append("messageType", "voice");
         try {
           const res = await axios.post("/messages/upload", formData, {
@@ -157,6 +173,7 @@ const MessageInput = ({ onSend, onMediaMessage, activeChatId, disabled = false, 
           if (onMediaMessage) onMediaMessage(saved);
         } catch (err) {
           console.error("Voice upload failed", err);
+          toast.error(err.response?.data?.message || "Failed to upload voice message");
         }
         chunksRef.current = [];
         setIsRecording(false);
@@ -166,6 +183,7 @@ const MessageInput = ({ onSend, onMediaMessage, activeChatId, disabled = false, 
       setIsRecording(true);
     } catch (err) {
       console.error("Microphone access error", err);
+      toast.error("Microphone access denied or failed");
     }
   };
 

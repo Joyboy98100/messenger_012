@@ -32,10 +32,14 @@ const Auth = () => {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    // If user is already logged in and opens Auth (e.g., via back button),
-    // send them to the normal home page regardless of role.
-    navigate("/home");
-  }, []);
+    const userStr = localStorage.getItem("user");
+    const user = userStr ? JSON.parse(userStr) : null;
+    if (user?.role === "admin") {
+      navigate("/admin/dashboard", { replace: true });
+    } else {
+      navigate("/home", { replace: true });
+    }
+  }, [navigate]);
 
 
   /* SUBMIT */
@@ -55,10 +59,7 @@ const Auth = () => {
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("user", JSON.stringify(loggedInUser));
 
-        if (
-          loggedInUser?.role === "admin" ||
-          loggedInUser?.role === "superadmin"
-        ) {
+        if (loggedInUser?.role === "admin") {
           navigate("/admin/dashboard");
         } else {
           navigate("/home");
@@ -80,6 +81,12 @@ const Auth = () => {
 
         toast.success("Registered successfully. Please login.");
         setIsLogin(true);
+        setEmail("");
+        setUsername("");
+        setPassword("");
+        setBio("");
+        setAvatarFile(null);
+        setAvatarPreview(null);
       }
     } catch (err) {
       toast.error(err.response?.data?.message || "Something went wrong");
