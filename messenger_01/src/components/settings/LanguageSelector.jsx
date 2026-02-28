@@ -14,7 +14,7 @@ export default function LanguageSelector() {
   useEffect(() => {
     const fetchLanguages = async () => {
       try {
-        const res = await axios.get("/users/languages");
+        const res = await axios.get("/user/languages");
         setLanguages(res.data.languages);
       } catch (err) {
         console.error("Failed to fetch languages:", err);
@@ -36,7 +36,7 @@ export default function LanguageSelector() {
     setSaving(true);
 
     try {
-      await axios.post("/users/language", {
+      await axios.post("/user/language", {
         preferredLanguage: code,
       });
 

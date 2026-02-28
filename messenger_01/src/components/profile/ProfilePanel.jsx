@@ -135,6 +135,77 @@ const ProfilePanel = ({
       {/* Own Profile Info */}
       {!viewingOther && (
         <div className="bg-white dark:bg-neutral-800 rounded-2xl p-5 shadow-lg border border-gray-200 dark:border-neutral-700 mt-4 space-y-5">
+          {/* Name */}
+          <div>
+            <p className="text-xs text-gray-500 dark:text-neutral-400">
+              Name
+            </p>
+            {editing ? (
+              <input
+                type="text"
+                className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-600 dark:bg-neutral-700 dark:text-neutral-100"
+                value={user.username || ""}
+                onChange={(e) =>
+                  setUser({
+                    ...user,
+                    username: e.target.value,
+                  })
+                }
+              />
+            ) : (
+              <p className="mt-1 font-medium text-gray-900 dark:text-neutral-100">
+                {user.username}
+              </p>
+            )}
+          </div>
+
+          {/* Email */}
+          <div>
+            <p className="text-xs text-gray-500 dark:text-neutral-400">
+              Email
+            </p>
+            {editing ? (
+              <input
+                type="email"
+                className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-600 dark:bg-neutral-700 dark:text-neutral-100"
+                value={user.email || ""}
+                onChange={(e) =>
+                  setUser({
+                    ...user,
+                    email: e.target.value,
+                  })
+                }
+              />
+            ) : (
+              <p className="mt-1 text-sm text-gray-900 dark:text-neutral-100">
+                {user.email || "Not set"}
+              </p>
+            )}
+          </div>
+
+          {/* Bio */}
+          <div>
+            <p className="text-xs text-gray-500 dark:text-neutral-400">
+              Bio
+            </p>
+            {editing ? (
+              <textarea
+                rows={2}
+                className="mt-1 w-full resize-none rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-600 dark:bg-neutral-700 dark:text-neutral-100"
+                value={user.bio || ""}
+                onChange={(e) =>
+                  setUser({
+                    ...user,
+                    bio: e.target.value,
+                  })
+                }
+              />
+            ) : (
+              <p className="mt-1 text-sm text-gray-700 dark:text-neutral-200">
+                {user.bio || "No bio"}
+              </p>
+            )}
+          </div>
 
           {/* Preferred Language */}
           <div>
@@ -144,7 +215,7 @@ const ProfilePanel = ({
 
             {editing ? (
               <select
-                className="border border-gray-300 dark:border-neutral-600 bg-white dark:bg-neutral-700 p-2.5 rounded-xl w-full"
+                className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-emerald-500 dark:border-neutral-600 dark:bg-neutral-700 dark:text-neutral-100"
                 value={user.preferredLanguage || "en"}
                 onChange={(e) =>
                   setUser({
@@ -160,7 +231,7 @@ const ProfilePanel = ({
                 ))}
               </select>
             ) : (
-              <p className="font-medium text-gray-900 dark:text-neutral-100">
+              <p className="mt-1 font-medium text-gray-900 dark:text-neutral-100">
                 {languages.find(
                   (l) => l.code === user.preferredLanguage
                 )?.name || "English"}
