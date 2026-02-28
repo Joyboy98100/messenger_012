@@ -5,7 +5,15 @@ import FriendRequest from "../models/FriendRequest.js";
 import BlockedUser from "../models/BlockedUser.js";
 import ProfilePhotoPrivacy from "../models/ProfilePhotoPrivacy.js";
 import Message from "../models/Message.js";
+import Conversation from "../models/Conversation.js";
+import Notification from "../models/Notification.js";
+import NotificationSetting from "../models/NotificationSetting.js";
+import LastSeenSetting from "../models/LastSeenSetting.js";
+import DarkMode from "../models/DarkMode.js";
+import UserLanguage from "../models/UserLanguage.js";
+import MessageSoundSetting from "../models/MessageSoundSetting.js";
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 
 /* UPDATE PROFILE */
 export const updateProfile = async (req, res) => {
@@ -401,5 +409,129 @@ export const getContacts = async (req, res) => {
   } catch (err) {
     console.error("GET CONTACTS ERROR:", err);
     return res.status(500).json({ error: err.message });
+  }
+};
+
+/* PERMANENTLY DELETE MY ACCOUNT */
+const extractCloudinaryPublicId = (url) => {
+  if (!url || typeof url !== "string") return null;
+  try {
+    const uploadIndex = url.indexOf("/upload/");
+    if (uploadIndex === -1) return null;
+    let path = url.substring(uploadIndex + "/upload/".length);
+    path = path.replace(/^v[0-9]+\/+/, "");
+    const withoutExt = path.replace(/\.[^/.]+$/, "");
+    return withoutExt || null;
+  } catch {
+    return null;
+  }
+};
+
+export const deleteMyAccount = async (req, res) => {
+  const userId = req.user;
+  const { password } = req.body || {};
+
+  if (!userId) {
+    return res.status(401).json({ message: "Not authorized" });
+  }
+
+  if (!password) {
+    return res
+      .status(400)
+      .json({ message: "Password is required to delete account" });
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const user = await User.findById(userId).session(session);
+
+    if (!user) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(401).json({ message: "Invalid password" });
+    }
+
+    const avatarUrl = user.avatar;
+
+    await Friend.deleteMany(
+      {
+        $or: [{ user1: userId }, { user2: userId }],
+      },
+      { session }
+    );
+
+    await FriendRequest.deleteMany(
+      {
+        $or: [{ sender: userId }, { receiver: userId }],
+      },
+      { session }
+    );
+
+    await BlockedUser.deleteMany(
+      {
+        $or: [{ blockerId: userId }, { blockedUserId: userId }],
+      },
+      { session }
+    );
+
+    await Conversation.updateMany(
+      { participants: userId },
+      { $pull: { participants: userId } },
+      { session }
+    );
+
+    await Message.updateMany(
+      { sender: userId },
+      {
+        $set: {
+          senderDeleted: true,
+        },
+      },
+      { session }
+    );
+
+    await ProfilePhotoPrivacy.deleteMany({ userId }, { session });
+    await LastSeenSetting.deleteMany({ userId }, { session });
+    await DarkMode.deleteMany({ userId }, { session });
+    await UserLanguage.deleteMany({ userId }, { session });
+    await MessageSoundSetting.deleteMany({ userId }, { session });
+    await Notification.deleteMany({ userId }, { session });
+    await NotificationSetting.deleteMany({ userId }, { session });
+
+    await User.deleteOne({ _id: userId }).session(session);
+
+    await session.commitTransaction();
+    session.endSession();
+
+    if (avatarUrl) {
+      try {
+        const publicId = extractCloudinaryPublicId(avatarUrl);
+        if (publicId) {
+          await cloudinary.uploader.destroy(publicId);
+        }
+      } catch (cloudErr) {
+        console.error("Error deleting avatar from Cloudinary:", cloudErr);
+      }
+    }
+
+    return res.status(200).json({
+      message: "Account permanently deleted. You have been logged out.",
+    });
+  } catch (err) {
+    console.error("DELETE ACCOUNT ERROR:", err);
+    await session.abortTransaction();
+    session.endSession();
+    return res.status(500).json({
+      error: "Failed to delete account. Please try again later.",
+    });
   }
 };

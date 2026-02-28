@@ -504,36 +504,43 @@ export const getRecentChats = async (req, res) => {
       (a, b) => new Date(b.lastMessageTime) - new Date(a.lastMessageTime)
     );
 
-    // Fetch user details for each chat
     const userIds = recentChats.map((chat) => chat.userId);
     const users = await User.find({ _id: { $in: userIds } })
       .select("username avatar email bio")
       .lean();
 
-    // Create a map for quick lookup
     const userMap = new Map();
     users.forEach((u) => {
       userMap.set(String(u._id), u);
     });
 
-    // Combine user info with chat info
-    const result = recentChats
-      .map((chat) => {
-        const user = userMap.get(chat.userId);
-        if (!user) return null; // Skip if user not found
+    const result = recentChats.map((chat) => {
+      const user = userMap.get(chat.userId);
 
+      if (!user) {
         return {
-          _id: user._id,
-          username: user.username,
-          avatar: user.avatar,
-          email: user.email,
-          bio: user.bio,
+          _id: chat.userId,
+          username: "Deleted User",
+          avatar: "/default-avatar.png",
+          email: "",
+          bio: "",
           lastMessage: chat.lastMessage,
           lastMessageType: chat.lastMessageType,
           lastMessageTime: chat.lastMessageTime,
         };
-      })
-      .filter((item) => item !== null);
+      }
+
+      return {
+        _id: user._id,
+        username: user.username,
+        avatar: user.avatar,
+        email: user.email,
+        bio: user.bio,
+        lastMessage: chat.lastMessage,
+        lastMessageType: chat.lastMessageType,
+        lastMessageTime: chat.lastMessageTime,
+      };
+    });
 
     return res.json(result);
   } catch (err) {

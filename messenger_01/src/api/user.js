@@ -1,6 +1,11 @@
-import axios from "axios";
+import axios from "./axios";
 
 export const updateProfile = (formData) =>
-  axios.put("http://localhost:5000/api/user/update", formData, {
+  axios.put("/user/update", formData, {
     headers: { "Content-Type": "multipart/form-data" },
+  });
+
+export const deleteAccount = (password) =>
+  axios.delete("/user/me", {
+    data: { password },
   });

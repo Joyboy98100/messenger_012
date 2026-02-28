@@ -6,6 +6,7 @@ import {
   searchUsers,
   getDiscoverUsers,
   getContacts,
+  deleteMyAccount,
 } from "../controllers/userController.js";
 
 import {
@@ -34,5 +35,6 @@ router.get("/contacts", protect, getContacts);
 // Profile Operations
 router.put("/update", protect, upload.single("avatar"), updateProfile);
 router.get("/:userId", protect, checkProfilePhotoPrivacy, getUserProfile);
+router.delete("/me", protect, deleteMyAccount);
 
 export default router;

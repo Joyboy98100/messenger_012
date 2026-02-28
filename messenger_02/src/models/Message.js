@@ -118,6 +118,10 @@ const messageSchema = new mongoose.Schema(
         seenAt: Date,
       },
     ],
+    senderDeleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

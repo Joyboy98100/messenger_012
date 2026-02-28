@@ -6,9 +6,11 @@ import MessageSoundToggle from "./MessageSoundToggle";
 import LanguageSelector from "./LanguageSelector";
 import LastSeenPrivacy from "./LastSeenPrivacy";
 import ProfilePhotoPrivacy from "./ProfilePhotoPrivacy";
+import DeleteAccountModal from "./DeleteAccountModal";
 
 const SettingsPanel = ({ onClose }) => {
   const navigate = useNavigate();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -67,9 +69,20 @@ const SettingsPanel = ({ onClose }) => {
         >
           Logout
         </button>
+
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          className="mt-3 w-full rounded-xl border border-red-300 bg-red-50 py-3 text-sm font-medium text-red-700 shadow-sm hover:bg-red-100 dark:border-red-700 dark:bg-red-900/30 dark:text-red-100"
+        >
+          Permanently delete account
+        </button>
       </div>
 
       </div>
+      <DeleteAccountModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+      />
     </div>
   );
 };
