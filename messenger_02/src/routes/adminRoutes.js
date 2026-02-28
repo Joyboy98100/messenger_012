@@ -3,6 +3,10 @@ import { protect } from "../middleware/authMiddleware.js";
 import { requireAdmin } from "../middleware/adminMiddleware.js";
 import {
   getDashboardStats,
+  getDashboardCharts,
+  getActivityFeed,
+  getTopActiveUsers,
+  getSystemHealth,
   getUsers,
   getUserById,
   banUser,
@@ -17,6 +21,10 @@ const router = express.Router();
 router.use(protect, requireAdmin);
 
 router.get("/dashboard", getDashboardStats);
+router.get("/dashboard/charts", getDashboardCharts);
+router.get("/dashboard/activity", getActivityFeed);
+router.get("/dashboard/top-users", getTopActiveUsers);
+router.get("/dashboard/health", getSystemHealth);
 router.get("/users", getUsers);
 router.get("/users/:userId", getUserById);
 

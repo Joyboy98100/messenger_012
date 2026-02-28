@@ -1,6 +1,12 @@
 import axios from "./axios";
 
 export const getAdminDashboard = () => axios.get("/admin/dashboard");
+export const getAdminDashboardCharts = () => axios.get("/admin/dashboard/charts");
+export const getAdminActivityFeed = (limit = 20) =>
+  axios.get("/admin/dashboard/activity", { params: { limit } });
+export const getAdminTopActiveUsers = (limit = 10) =>
+  axios.get("/admin/dashboard/top-users", { params: { limit } });
+export const getAdminSystemHealth = () => axios.get("/admin/dashboard/health");
 
 export const getAdminUsers = (page = 1, search = "", limit = 20, role = "", status = "", sort = "createdAt", order = "desc") =>
   axios.get("/admin/users", {
