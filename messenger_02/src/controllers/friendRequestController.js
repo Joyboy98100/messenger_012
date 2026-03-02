@@ -10,12 +10,17 @@ import mongoose from "mongoose";
 /* SEND FRIEND REQUEST */
 export const sendRequest = async (req, res) => {
   try {
-    const senderId = req.user; // from JWT middleware
+    const senderId = req.user; // from JWT middleware (ObjectId)
     const { receiverId } = req.body;
 
+    const senderStr = String(senderId);
+    const receiverStr = String(receiverId);
+
     // ❌ cannot send to self
-    if (senderId === receiverId) {
-      return res.status(400).json({ message: "Cannot send request to yourself" });
+    if (senderStr === receiverStr) {
+      return res
+        .status(400)
+        .json({ message: "Cannot send request to yourself" });
     }
 
     // ❌ check existing request
@@ -84,7 +89,7 @@ export const sendRequest = async (req, res) => {
 /* ACCEPT FRIEND REQUEST */
 export const acceptRequest = async (req, res) => {
   try {
-    const userId = req.user; // logged-in user
+    const userId = req.user; // logged-in user (ObjectId)
     const requestId = req.params.requestId || req.body.requestId;
 
     if (!requestId || !mongoose.Types.ObjectId.isValid(requestId)) {
@@ -97,7 +102,7 @@ export const acceptRequest = async (req, res) => {
       return res.status(404).json({ message: "Request not found" });
 
     // Only receiver can accept
-    if (request.receiver.toString() !== userId) {
+    if (request.receiver.toString() !== String(userId)) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
@@ -175,7 +180,7 @@ export const acceptRequest = async (req, res) => {
 /* REJECT FRIEND REQUEST */
 export const rejectRequest = async (req, res) => {
   try {
-    const userId = req.user; // logged-in user
+    const userId = req.user; // logged-in user (ObjectId)
     const requestId = req.params.requestId || req.body.requestId;
 
     if (!requestId || !mongoose.Types.ObjectId.isValid(requestId)) {
@@ -188,7 +193,7 @@ export const rejectRequest = async (req, res) => {
       return res.status(404).json({ message: "Request not found" });
 
     // Only receiver can reject
-    if (request.receiver.toString() !== userId) {
+    if (request.receiver.toString() !== String(userId)) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
@@ -246,7 +251,7 @@ export const rejectRequest = async (req, res) => {
 /* CANCEL FRIEND REQUEST */
 export const cancelRequest = async (req, res) => {
   try {
-    const userId = req.user; // logged-in user
+    const userId = req.user; // logged-in user (ObjectId)
     const requestId = req.params.requestId || req.body.requestId;
 
     if (!requestId || !mongoose.Types.ObjectId.isValid(requestId)) {
@@ -259,7 +264,7 @@ export const cancelRequest = async (req, res) => {
       return res.status(404).json({ message: "Request not found" });
 
     // Only sender can cancel
-    if (request.sender.toString() !== userId) {
+    if (request.sender.toString() !== String(userId)) {
       return res.status(403).json({ message: "Not authorized" });
     }
     if (request.status !== "pending") {
