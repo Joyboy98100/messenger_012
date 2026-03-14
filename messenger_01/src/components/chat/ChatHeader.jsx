@@ -1,22 +1,48 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import Avatar from "../common/Avatar";
 import CallButtons from "../call/CallButtons";
 import MessageSearchBar from "./MessageSearchBar";
-import { Menu, MoreVertical, Search, X } from "lucide-react";
+import { Menu, MoreVertical, Search, X, Phone, Video, User, Shield, ShieldOff } from "lucide-react";
+import { useCall } from "../../context/CallContext";
 
+/* ─── helpers ─── */
 const formatLastSeen = (lastSeen) => {
   if (!lastSeen) return "";
   const date = new Date(lastSeen);
   if (Number.isNaN(date.getTime())) return "";
-
-  const time = date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  return `Last seen at ${time}`;
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return isToday ? `Last seen at ${time}` : `Last seen ${date.toLocaleDateString([], { month: "short", day: "numeric" })} at ${time}`;
 };
 
+/* ─── icon button primitive ─── */
+const IconBtn = ({ onClick, disabled, label, title, className = "", children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className={`
+      relative flex items-center justify-center
+      w-10 h-10 rounded-xl shrink-0
+      text-gray-500 dark:text-neutral-400
+      hover:bg-gray-100 dark:hover:bg-neutral-700
+      hover:text-gray-900 dark:hover:text-neutral-100
+      active:scale-95
+      disabled:opacity-40 disabled:cursor-not-allowed
+      transition-all duration-150
+      ${className}
+    `}
+    aria-label={label}
+    title={title || label}
+  >
+    {children}
+  </button>
+);
+
+/* ═══════════════════════════════════════════════════
+   ChatHeader — production-grade responsive header
+   ═══════════════════════════════════════════════════ */
 const ChatHeader = ({
   activeChat,
   typingUser,
@@ -36,61 +62,75 @@ const ChatHeader = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSearchBar, setShowSearchBar] = useState(false);
   const menuRef = useRef(null);
+  const { startCall, callState } = useCall();
+  const callBusy = callState !== "idle";
+
+  /* close menu on outside click */
+  const handleClickOutside = useCallback((e) => {
+    if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+  }, []);
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
-    };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [handleClickOutside]);
 
   if (!activeChat) return null;
 
   const isGroup = activeChat.isGroup || false;
+  const displayName = isGroup ? activeChat.name : activeChat.username;
   const isOnlineNow = isOnline || onlineUsersIncludes;
+  const avatarSrc = hideProfilePhoto
+    ? undefined
+    : isGroup
+    ? activeChat.groupLogo || activeChat.avatar
+    : activeChat.avatar;
 
-  let statusNode = null;
+  /* ─── status node ─── */
+  let statusText = "Offline";
+  let statusColor = "text-gray-400 dark:text-neutral-500";
+  let statusDot = false;
+  let statusPulse = false;
 
-  if (typingUser) {
-    statusNode = (
-      <span className="text-emerald-400 animate-pulse font-medium">
-        {activeChat.username} is typing...
-      </span>
-    );
+  if (isGroup) {
+    statusText = `${activeChat.members?.length || 0} member${(activeChat.members?.length || 0) !== 1 ? "s" : ""}`;
+    statusColor = "text-gray-500 dark:text-neutral-400";
+  } else if (typingUser) {
+    statusText = "typing…";
+    statusColor = "text-emerald-500 dark:text-emerald-400";
+    statusPulse = true;
   } else if (isOnlineNow) {
-    statusNode = (
-      <span className="text-emerald-400 font-medium flex items-center gap-1">
-        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-        Online
-      </span>
-    );
+    statusText = "Online";
+    statusColor = "text-emerald-500 dark:text-emerald-400";
+    statusDot = true;
   } else if (lastSeen) {
-    statusNode = (
-      <span className="text-gray-500 dark:text-neutral-400">
-        {formatLastSeen(lastSeen)}
-      </span>
-    );
-  } else {
-    statusNode = (
-      <span className="text-gray-500 dark:text-neutral-400">
-        Offline
-      </span>
-    );
+    statusText = formatLastSeen(lastSeen);
+    statusColor = "text-gray-400 dark:text-neutral-500";
   }
 
-  return (
-    <div className="flex items-center justify-between bg-white dark:bg-neutral-800/95 backdrop-blur-sm p-4 md:p-5 rounded-2xl shadow-lg border border-gray-200 dark:border-neutral-700 mb-4 sticky top-0 z-10">
-      {showSearchBar ? (
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <button
-            type="button"
-            onClick={() => setShowSearchBar(false)}
-            className="p-2 rounded-xl text-gray-500 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-700 hover:text-gray-900 dark:hover:text-neutral-100 shrink-0 transition-colors"
-            aria-label="Close search"
-          >
-            <Menu size={20} />
-          </button>
+  /* ─── call handlers ─── */
+  const handleAudioCall = () => {
+    if (callBusy || !activeChat._id || isGroup) return;
+    startCall("audio", activeChat._id, activeChat.username);
+  };
+  const handleVideoCall = () => {
+    if (callBusy || !activeChat._id || isGroup) return;
+    startCall("video", activeChat._id, activeChat.username);
+  };
+
+  /* ────────────────────────────────────────────────
+     SEARCH BAR MODE — full-width search experience
+     ──────────────────────────────────────────────── */
+  if (showSearchBar) {
+    return (
+      <header className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2.5 sm:px-4 sm:py-3 bg-white dark:bg-neutral-800/95 backdrop-blur-md border-b border-gray-200/80 dark:border-neutral-700/80 shadow-sm">
+        <IconBtn
+          onClick={() => setShowSearchBar(false)}
+          label="Close search"
+        >
+          <X size={20} />
+        </IconBtn>
+        <div className="flex-1 min-w-0">
           <MessageSearchBar
             chatId={activeChat?._id}
             messages={searchMessagesList}
@@ -101,108 +141,179 @@ const ChatHeader = ({
             onClose={() => setShowSearchBar(false)}
           />
         </div>
-      ) : (
-        <>
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <button
+      </header>
+    );
+  }
+
+  /* ────────────────────────────────────────────────
+     MAIN HEADER
+     ──────────────────────────────────────────────── */
+  return (
+    <header className="sticky top-0 z-20 flex items-center gap-2 px-2 py-2 sm:px-4 sm:py-2.5 bg-white dark:bg-neutral-800/95 backdrop-blur-md border-b border-gray-200/80 dark:border-neutral-700/80 shadow-sm">
+
+      {/* ═══ LEFT SECTION: Menu + Avatar + Info ═══ */}
+      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+
+        {/* Hamburger — mobile only */}
+        <IconBtn
           onClick={onOpenFriendsList}
-          className="md:hidden p-2 rounded-xl text-gray-500 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-700 hover:text-gray-900 dark:hover:text-neutral-100 transition-colors shrink-0"
+          label="Open chats list"
+          className="sm:hidden"
         >
           <Menu size={20} />
-        </button>
+        </IconBtn>
+
+        {/* Avatar + Contact Info — clickable to open profile */}
         <button
           type="button"
           onClick={onOpenProfile}
-          className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none rounded-xl hover:bg-gray-50 dark:hover:bg-neutral-700/50 transition-colors p-1 -m-1"
+          className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0 text-left rounded-xl p-1.5 -ml-1.5 hover:bg-gray-50 dark:hover:bg-neutral-700/40 active:bg-gray-100 dark:active:bg-neutral-700/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-1"
         >
-          <Avatar
-            name={isGroup ? activeChat.name : activeChat.username}
-            src={hideProfilePhoto ? undefined : (isGroup ? (activeChat.groupLogo || activeChat.avatar) : activeChat.avatar)}
-            size="md"
-            online={isGroup ? false : isOnlineNow}
-          />
+          {/* Avatar — fixed size, never shrinks */}
+          <div className="shrink-0">
+            <Avatar
+              name={displayName}
+              src={avatarSrc}
+              size="md"
+              online={isGroup ? false : isOnlineNow}
+            />
+          </div>
+
+          {/* Name + Status — flexible, truncates gracefully */}
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-gray-900 dark:text-neutral-100 text-base truncate">
-              {isGroup ? activeChat.name : activeChat.username}
+            <h3 className="font-semibold text-[15px] leading-tight text-gray-900 dark:text-neutral-100 truncate">
+              {displayName}
             </h3>
-            <p className="text-xs mt-0.5">
-              {isGroup 
-                ? `${activeChat.members?.length || 0} member${(activeChat.members?.length || 0) !== 1 ? "s" : ""}`
-                : statusNode
-              }
+            <p className={`text-xs leading-tight mt-0.5 flex items-center gap-1.5 ${statusColor} ${statusPulse ? "animate-pulse" : ""}`}>
+              {statusDot && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+              )}
+              <span className="truncate">{statusText}</span>
             </p>
           </div>
         </button>
       </div>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
+
+      {/* ═══ RIGHT SECTION: Actions ═══ */}
+      <div className="flex items-center shrink-0">
+
+        {/* Search — visible on all screens */}
+        <IconBtn
           onClick={() => setShowSearchBar(true)}
-          className="p-2 rounded-xl text-gray-500 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-700 hover:text-gray-900 dark:hover:text-neutral-100 transition-colors"
-          aria-label="Search in chat"
+          label="Search in chat"
         >
-          <Search size={20} />
-        </button>
+          <Search size={19} />
+        </IconBtn>
+
+        {/* Call buttons — visible only on md+ screens */}
+        {!isGroup && (
+          <>
+            <IconBtn
+              onClick={handleAudioCall}
+              disabled={callBusy || !isOnlineNow}
+              label="Audio call"
+              className="hidden md:flex"
+            >
+              <Phone size={19} className="text-emerald-600 dark:text-emerald-400" />
+            </IconBtn>
+            <IconBtn
+              onClick={handleVideoCall}
+              disabled={callBusy || !isOnlineNow}
+              label="Video call"
+              className="hidden md:flex"
+            >
+              <Video size={19} className="text-blue-600 dark:text-blue-400" />
+            </IconBtn>
+          </>
+        )}
+
+        {/* ⋮ Overflow menu */}
         <div className="relative" ref={menuRef}>
-          <button
-            type="button"
+          <IconBtn
             onClick={() => setMenuOpen((o) => !o)}
-            className="p-2 rounded-xl text-gray-500 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-700 hover:text-gray-900 dark:hover:text-neutral-100 transition-colors"
-            aria-label="More options"
+            label="More options"
           >
-            <MoreVertical size={20} />
-          </button>
+            <MoreVertical size={19} />
+          </IconBtn>
+
+          {/* Dropdown */}
           {menuOpen && (
-            <div className="absolute right-0 top-full mt-1 py-1 w-48 bg-white dark:bg-neutral-800 rounded-xl shadow-lg border border-gray-200 dark:border-neutral-700 z-50">
+            <div className="absolute right-0 top-full mt-1.5 py-1.5 w-52 bg-white dark:bg-neutral-800 rounded-2xl shadow-xl border border-gray-200 dark:border-neutral-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+
+              {/* View profile */}
               <button
                 type="button"
                 onClick={() => { onOpenProfile?.(); setMenuOpen(false); }}
-                className="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-neutral-200 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-t-xl"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-neutral-200 hover:bg-gray-50 dark:hover:bg-neutral-700/60 transition-colors"
               >
+                <User size={16} className="shrink-0 text-gray-400 dark:text-neutral-500" />
                 View profile
               </button>
-              {isBlocking ? (
+
+              {/* Audio call — mobile only (hidden on md+) */}
+              {!isGroup && (
                 <button
                   type="button"
-                  onClick={() => { onUnblock?.(); setMenuOpen(false); }}
-                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 dark:text-neutral-200 hover:bg-gray-100 dark:hover:bg-neutral-700"
+                  onClick={() => { handleAudioCall(); setMenuOpen(false); }}
+                  disabled={callBusy || !isOnlineNow}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-neutral-200 hover:bg-gray-50 dark:hover:bg-neutral-700/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors md:hidden"
                 >
-                  Unblock user
+                  <Phone size={16} className="shrink-0 text-emerald-500" />
+                  Audio call
                 </button>
-              ) : (
+              )}
+
+              {/* Video call — mobile only (hidden on md+) */}
+              {!isGroup && (
                 <button
                   type="button"
-                  onClick={() => { onBlock?.(); setMenuOpen(false); }}
-                  className="w-full px-4 py-2.5 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-b-xl"
+                  onClick={() => { handleVideoCall(); setMenuOpen(false); }}
+                  disabled={callBusy || !isOnlineNow}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-neutral-200 hover:bg-gray-50 dark:hover:bg-neutral-700/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors md:hidden"
                 >
-                  Block user
+                  <Video size={16} className="shrink-0 text-blue-500" />
+                  Video call
                 </button>
+              )}
+
+              {/* Divider */}
+              <div className="my-1 h-px bg-gray-100 dark:bg-neutral-700" />
+
+              {/* Block/Unblock */}
+              {!isGroup && (
+                isBlocking ? (
+                  <button
+                    type="button"
+                    onClick={() => { onUnblock?.(); setMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-neutral-200 hover:bg-gray-50 dark:hover:bg-neutral-700/60 transition-colors"
+                  >
+                    <ShieldOff size={16} className="shrink-0 text-gray-400 dark:text-neutral-500" />
+                    Unblock user
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { onBlock?.(); setMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                  >
+                    <Shield size={16} className="shrink-0" />
+                    Block user
+                  </button>
+                )
               )}
             </div>
           )}
         </div>
-        <CallButtons
-          receiverId={activeChat._id}
-          receiverName={activeChat.username}
-          isOnline={isOnlineNow}
-        />
+
+        {/* Close button — only when onClose is provided */}
         {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-gray-500 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-700 hover:text-gray-900 dark:hover:text-neutral-100 transition-colors"
-            aria-label="Close chat"
-            title="Close chat"
-          >
-            <X size={20} />
-          </button>
+          <IconBtn onClick={onClose} label="Close chat">
+            <X size={19} />
+          </IconBtn>
         )}
       </div>
-        </>
-      )}
-    </div>
+    </header>
   );
 };
 
 export default ChatHeader;
-

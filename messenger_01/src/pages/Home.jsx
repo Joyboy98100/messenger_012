@@ -1840,22 +1840,32 @@ const Home = () => {
             activeView={activeView}
             onViewChange={setActiveView}
             onProfileClick={() => {
+              setSidebarOpen(false);
               setProfilePanelShowSelf(true);
-              setActivePanel(activePanel === "profile" ? null : "profile");
+              setActivePanel((p) => p === "profile" ? null : "profile");
             }}
-            onSettingsClick={() => setActivePanel(activePanel === "settings" ? null : "settings")}
-            onUsersClick={() => setActivePanel(activePanel === "users" ? null : "users")}
-            onRequestsClick={() => setActivePanel(activePanel === "requests" ? null : "requests")}
+            onSettingsClick={() => {
+              setSidebarOpen(false);
+              setActivePanel((p) => p === "settings" ? null : "settings");
+            }}
+            onUsersClick={() => {
+              setSidebarOpen(false);
+              setActivePanel((p) => p === "users" ? null : "users");
+            }}
+            onRequestsClick={() => {
+              setSidebarOpen(false);
+              setActivePanel((p) => p === "requests" ? null : "requests");
+            }}
             onCallsClick={() => {
-              setActiveView("calls");
+              setActivePanel(null);
               setSidebarOpen(false);
             }}
             onChatsClick={() => {
-              setActiveView("chats");
+              setActivePanel(null);
               setSidebarOpen((o) => !o);
             }}
             onContactsClick={() => {
-              setActiveView("contacts");
+              setActivePanel(null);
               setSidebarOpen((o) => !o);
             }}
           />
@@ -1878,15 +1888,17 @@ const Home = () => {
               <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-neutral-400">
                 {activeView === "contacts" ? "All Contacts" : "Recent Chats"}
               </span>
-              {activeView === "chats" && (
-                <button
-                  onClick={() => setCreateGroupModalOpen(true)}
-                  className="p-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium transition-colors"
-                  title="Create Group"
-                >
-                  <Plus size={16} />
-                </button>
-              )}
+              <div className="flex items-center gap-1">
+                {activeView === "chats" && (
+                  <button
+                    onClick={() => setCreateGroupModalOpen(true)}
+                    className="p-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium transition-colors"
+                    title="Create Group"
+                  >
+                    <Plus size={16} />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto pb-2">
               {activeView === "chats" && (loadingRecentChats || loadingGroups) ? (
@@ -2620,7 +2632,7 @@ const Home = () => {
         </button>
         <button
           type="button"
-          onClick={() => setActivePanel(activePanel === "settings" ? null : "settings")}
+          onClick={() => { setSidebarOpen(false); setActivePanel((p) => p === "settings" ? null : "settings"); }}
           className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activePanel === "settings" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>
@@ -2628,7 +2640,7 @@ const Home = () => {
         </button>
         <button
           type="button"
-          onClick={() => { setProfilePanelShowSelf(true); setActivePanel(activePanel === "profile" ? null : "profile"); }}
+          onClick={() => { setSidebarOpen(false); setProfilePanelShowSelf(true); setActivePanel((p) => p === "profile" ? null : "profile"); }}
           className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activePanel === "profile" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
