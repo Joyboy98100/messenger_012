@@ -6,6 +6,7 @@ import { blockUser, unblockUser, amBlocking } from "../../api/block";
 import SharedMedia from "./SharedMedia";
 import axios from "../../api/axios";
 import { useLanguage } from "../../context/LanguageContext";
+import { X } from "lucide-react";
 
 const ProfilePanel = ({
   onClose,
@@ -133,6 +134,22 @@ const ProfilePanel = ({
       animate={{ x: 0, opacity: 1 }}
       transition={{ type: "tween", duration: 0.3 }}
     >
+      {/* Close button */}
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-500 dark:text-neutral-400 uppercase tracking-wider">
+          {viewingOther ? "User Profile" : "My Profile"}
+        </h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-2 rounded-xl text-gray-500 dark:text-neutral-400 hover:bg-gray-100 dark:hover:bg-neutral-700 hover:text-gray-900 dark:hover:text-neutral-100 transition-colors"
+          aria-label="Close profile"
+          title="Close"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
       {/* Profile Card */}
       <div className="bg-white dark:bg-neutral-800 rounded-2xl p-5 shadow-lg border border-gray-200 dark:border-neutral-700 text-center relative">
 

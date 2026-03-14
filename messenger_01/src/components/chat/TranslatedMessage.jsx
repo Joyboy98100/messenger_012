@@ -84,19 +84,18 @@ export default function TranslatedMessage({
 
   const groupedReactions = Array.isArray(reactions)
     ? reactions.reduce((acc, r) => {
-        const emoji = r?.emoji ?? r;
-        if (!acc[emoji]) acc[emoji] = 0;
-        acc[emoji] += 1;
-        return acc;
-      }, {})
+      const emoji = r?.emoji ?? r;
+      if (!acc[emoji]) acc[emoji] = 0;
+      acc[emoji] += 1;
+      return acc;
+    }, {})
     : {};
 
   const bubbleClasses = `
     px-4 md:px-5 py-2.5 rounded-2xl shadow-lg max-w-[85%] md:max-w-xs text-sm relative
-    ${
-      isOwn
-        ? "bg-gradient-to-br from-purple-600 to-pink-500 text-white ml-auto"
-        : "bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm text-gray-800 dark:text-white border border-gray-200/50 dark:border-slate-700/50"
+    ${isOwn
+      ? "bg-gradient-to-br from-purple-600 to-pink-500 text-white ml-auto"
+      : "bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm text-gray-800 dark:text-white border border-gray-200/50 dark:border-slate-700/50"
     }
   `;
 
@@ -122,6 +121,7 @@ export default function TranslatedMessage({
                 <img
                   src={file}
                   alt="sent"
+                  loading="lazy"
                   className="rounded-lg max-h-48 object-cover"
                 />
               )}

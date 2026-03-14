@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import ChatItem from "../components/chat/ChatItem";
 import SidebarIcons from "../components/layout/SidebarIcons";
 import MessageBubble from "../components/chat/MessageBubble";
@@ -7,11 +7,18 @@ import VoiceMessageBubble from "../components/chat/VoiceMessageBubble";
 import MessageInput from "../components/chat/MessageInput";
 import Avatar from "../components/common/Avatar";
 import ChatHeader from "../components/chat/ChatHeader";
-import ProfilePanel from "../components/profile/ProfilePanel";
-import SettingsPanel from "../components/settings/SettingsPanel";
-import UsersPanel from "../components/users/UsersPanel";
-import RequestsPanel from "../components/notifications/RequestsPanel";
-import CallsPanel from "../components/calls/CallsPanel";
+import DateSeparator, { NewMessagesSeparator } from "../components/chat/DateSeparator";
+
+// Lazy-loaded heavy side panels & modals — only fetched when user opens them
+const ProfilePanel = React.lazy(() => import("../components/profile/ProfilePanel"));
+const SettingsPanel = React.lazy(() => import("../components/settings/SettingsPanel"));
+const UsersPanel = React.lazy(() => import("../components/users/UsersPanel"));
+const RequestsPanel = React.lazy(() => import("../components/notifications/RequestsPanel"));
+const CallsPanel = React.lazy(() => import("../components/calls/CallsPanel"));
+const ForwardModal = React.lazy(() => import("../components/chat/ForwardModal"));
+const CreateGroupModal = React.lazy(() => import("../components/groups/CreateGroupModal"));
+const GroupProfilePanel = React.lazy(() => import("../components/groups/GroupProfilePanel"));
+const ScheduleMessageModal = React.lazy(() => import("../components/chat/ScheduleMessageModal"));
 
 import socket from "../socket";
 import {
@@ -32,14 +39,9 @@ import { getContacts } from "../api/users";
 import axios from "../api/axios";
 import { X, MessageCircle } from "lucide-react";
 import { useToastContext } from "../context/ToastContext";
-import ForwardModal from "../components/chat/ForwardModal";
-import CreateGroupModal from "../components/groups/CreateGroupModal";
-import GroupProfilePanel from "../components/groups/GroupProfilePanel";
-import ScheduleMessageModal from "../components/chat/ScheduleMessageModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { getUserGroups } from "../api/groups";
 import { cancelScheduledMessage } from "../api/scheduledMessages";
-import DateSeparator, { NewMessagesSeparator } from "../components/chat/DateSeparator";
 import { Users as UsersIcon, Plus } from "lucide-react";
 import { getDeviceId } from "../realtime/deviceId";
 import {
@@ -49,6 +51,16 @@ import {
   setLastSyncTimestamp,
 } from "../realtime/cache";
 import { enqueueOutbox, listOutbox, removeOutbox } from "../realtime/outbox";
+
+/* Small spinner for lazy-loaded panels */
+const PanelLoader = () => (
+  <div className="flex items-center justify-center h-full w-full py-12">
+    <svg className="animate-spin h-7 w-7 text-emerald-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+  </div>
+);
 
 const Home = () => {
   const ACTIVE_CHAT_KEY = "activeChat:v1";
@@ -65,7 +77,7 @@ const Home = () => {
   const [scheduleText, setScheduleText] = useState("");
   const [messages, setMessages] = useState({});
   const [typingUser, setTypingUser] = useState(null);
-  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [onlineUsers, setOnlineUsers] = useState(new Set()); // Set for O(1) lookups
   const [sidebarOpen, setSidebarOpen] = useState(true); // icon-only when false
   const [loadingFriends, setLoadingFriends] = useState(true);
   const [loadingRecentChats, setLoadingRecentChats] = useState(true);
@@ -86,7 +98,22 @@ const Home = () => {
   const [highlightMessageId, setHighlightMessageId] = useState(null);
   const [highlightQuery, setHighlightQuery] = useState("");
   const { preferredLanguage } = useLanguage();
+  const preferredLanguageRef = useRef(preferredLanguage);
+  useEffect(() => { preferredLanguageRef.current = preferredLanguage; }, [preferredLanguage]);
   const restoredActiveChatRef = useRef(false);
+
+  // Socket connection status
+  const [socketConnected, setSocketConnected] = useState(socket.connected);
+  useEffect(() => {
+    const onConnect = () => setSocketConnected(true);
+    const onDisconnect = () => setSocketConnected(false);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+    };
+  }, []);
 
   // Persist message state to IndexedDB in a debounced way (all conversations).
   const cacheFlushTimerRef = useRef(null);
@@ -508,39 +535,39 @@ const Home = () => {
         const time = new Date(createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         const item = isMedia
           ? {
-              _id: m._id != null ? String(m._id) : m._id,
-              clientMessageId: m.clientMessageId,
-              type: msgType,
-              file: fileUrl,
-              audioUrl: m.audioUrl || m.fileUrl || m.file,
-              duration: m.duration,
-              text: m.text || m.fileName || "",
-              isOwn,
-              time,
-              createdAt,
-              status: m.status ?? (isOwn ? "sent" : "sent"),
-              reactions: m.reactions || [],
-              forwarded: m.forwarded,
-              deletedForEveryone: m.deletedForEveryone,
-            }
+            _id: m._id != null ? String(m._id) : m._id,
+            clientMessageId: m.clientMessageId,
+            type: msgType,
+            file: fileUrl,
+            audioUrl: m.audioUrl || m.fileUrl || m.file,
+            duration: m.duration,
+            text: m.text || m.fileName || "",
+            isOwn,
+            time,
+            createdAt,
+            status: m.status ?? (isOwn ? "sent" : "sent"),
+            reactions: m.reactions || [],
+            forwarded: m.forwarded,
+            deletedForEveryone: m.deletedForEveryone,
+          }
           : {
-              _id: m._id != null ? String(m._id) : m._id,
-              clientMessageId: m.clientMessageId,
-              type: "text",
-              text: isOwn ? (m.originalText ?? m.text ?? "") : (m.translatedText ?? m.text ?? ""),
-              originalText: m.originalText ?? m.text ?? "",
-              translatedText: m.translatedText ?? m.text ?? "",
-              detectedLanguage: m.detectedLanguage,
-              isOwn,
-              time,
-              createdAt,
-              status: m.status ?? (isOwn ? "sent" : "sent"),
-              reactions: m.reactions || [],
-              forwarded: m.forwarded,
-              deletedForEveryone: m.deletedForEveryone,
-              edited: !!m.edited,
-              editedAt: m.editedAt ?? null,
-            };
+            _id: m._id != null ? String(m._id) : m._id,
+            clientMessageId: m.clientMessageId,
+            type: "text",
+            text: isOwn ? (m.originalText ?? m.text ?? "") : (m.translatedText ?? m.text ?? ""),
+            originalText: m.originalText ?? m.text ?? "",
+            translatedText: m.translatedText ?? m.text ?? "",
+            detectedLanguage: m.detectedLanguage,
+            isOwn,
+            time,
+            createdAt,
+            status: m.status ?? (isOwn ? "sent" : "sent"),
+            reactions: m.reactions || [],
+            forwarded: m.forwarded,
+            deletedForEveryone: m.deletedForEveryone,
+            edited: !!m.edited,
+            editedAt: m.editedAt ?? null,
+          };
 
         if (!byConversation[conversationId]) byConversation[conversationId] = [];
         byConversation[conversationId].push(item);
@@ -592,26 +619,26 @@ const Home = () => {
 
       const messageObj = isMedia
         ? {
-            _id,
-            type: messageType,
-            file: fileUrl || audioUrl,
-            audioUrl: audioUrl || fileUrl,
-            duration,
-            text: text || fileName || "",
-            isOwn: false,
-            time: new Date(createdAt || Date.now()).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          }
+          _id,
+          type: messageType,
+          file: fileUrl || audioUrl,
+          audioUrl: audioUrl || fileUrl,
+          duration,
+          text: text || fileName || "",
+          isOwn: false,
+          time: new Date(createdAt || Date.now()).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        }
         : {
-            text: text,
-            isOwn: false,
-            time: new Date(createdAt || Date.now()).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          };
+          text: text,
+          isOwn: false,
+          time: new Date(createdAt || Date.now()).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
 
       setMessages((prev) => ({
         ...prev,
@@ -633,9 +660,22 @@ const Home = () => {
 
   /* RECEIVE MESSAGE (socket.io): use originalText/translatedText from server when present (no repeated API calls) */
   useEffect(() => {
+    // Guard against duplicate processing: server emits both "receiveMessage" + "receive_message"
+    // for every message. We track recently-processed messages to skip the duplicate.
+    const recentlyProcessed = new Set();
+
     const handler = async ({ senderId, receiverId, groupId, message }) => {
       const user = JSON.parse(localStorage.getItem("user"));
       if (!user) return;
+
+      // Dedupe: build a unique key from senderId + message._id (or text hash for fallback)
+      const mid = message?._id ?? message?.clientMessageId ?? null;
+      const dedupeKey = mid ? `${senderId}:${mid}` : null;
+      if (dedupeKey) {
+        if (recentlyProcessed.has(dedupeKey)) return; // already handled from the other event name
+        recentlyProcessed.add(dedupeKey);
+        setTimeout(() => recentlyProcessed.delete(dedupeKey), 2000);
+      }
 
       const userId = user?.id || user?._id;
       // 1-on-1: if server echoes back to sender, we want to append to the receiver conversation.
@@ -727,7 +767,7 @@ const Home = () => {
                 isOwn,
                 time,
                 createdAt: createdAtIso,
-                  status: m.status ?? "sent",
+                status: m.status ?? "sent",
                 reactions: m.reactions || [],
                 type: m.type || "text",
                 file: m.fileUrl || m.file || m.audioUrl,
@@ -759,23 +799,23 @@ const Home = () => {
               groupId: String(groupId),
             });
           } else {
-          socket.emit("messageDelivered", {
-            senderId: String(senderId),
-            receiverId: String(userId),
-            messageId: mid,
-          });
+            socket.emit("messageDelivered", {
+              senderId: String(senderId),
+              receiverId: String(userId),
+              messageId: mid,
+            });
           }
         }
       } else {
         const text = typeof message === "string" ? message : message?.text || "";
         const isOwn = String(senderId) === String(userId);
-        
+
         // Only translate for 1-on-1 messages, not groups
         if (!groupId) {
           try {
             const { originalText, translatedText, detectedLanguage } = await translateText(
               text,
-              preferredLanguage
+              preferredLanguageRef.current
             );
             setMessages((prev) => ({
               ...prev,
@@ -788,6 +828,7 @@ const Home = () => {
                   detectedLanguage,
                   isOwn,
                   time,
+                  createdAt: new Date().toISOString(),
                   status: "delivered",
                   reactions: [],
                   type: "text",
@@ -806,6 +847,7 @@ const Home = () => {
                   translatedText: text,
                   isOwn,
                   time,
+                  createdAt: new Date().toISOString(),
                   status: "sent",
                   reactions: [],
                   type: "text",
@@ -876,7 +918,7 @@ const Home = () => {
       socket.off("groupMessage", handler);
       socket.off("group_message", handler);
     };
-  }, [preferredLanguage]);
+  }, []); // stable — uses preferredLanguageRef to avoid re-registering on language change
 
   /* LOAD CHAT HISTORY */
   useEffect(() => {
@@ -902,7 +944,7 @@ const Home = () => {
       try {
         // Check if it's a group chat
         const isGroup = activeChat.isGroup || false;
-        const res = isGroup 
+        const res = isGroup
           ? await getGroupMessages(activeChat._id)
           : await getMessages(userId, activeChat._id);
 
@@ -1162,13 +1204,14 @@ const Home = () => {
     });
   }, [activeChat, messages]);
 
-  /* ONLINE USERS */
+  /* ONLINE USERS — convert array to Set for O(1) .has() lookups */
   useEffect(() => {
-    socket.on("onlineUsers", (users) => setOnlineUsers(users));
-    socket.on("online_users", (users) => setOnlineUsers(users));
+    const handler = (users) => setOnlineUsers(new Set(Array.isArray(users) ? users.map(String) : []));
+    socket.on("onlineUsers", handler);
+    socket.on("online_users", handler);
     return () => {
-      socket.off("onlineUsers");
-      socket.off("online_users");
+      socket.off("onlineUsers", handler);
+      socket.off("online_users", handler);
     };
   }, []);
 
@@ -1389,12 +1432,12 @@ const Home = () => {
         const updated = list.map((m) =>
           String(m._id) === sid
             ? {
-                ...m,
-                originalText: originalText ?? text,
-                translatedText: translatedText ?? text,
-                detectedLanguage,
-                text: translatedText ?? m.text,
-              }
+              ...m,
+              originalText: originalText ?? text,
+              translatedText: translatedText ?? text,
+              detectedLanguage,
+              text: translatedText ?? m.text,
+            }
             : m
         );
         return { ...prev, [cid]: updated };
@@ -1521,9 +1564,9 @@ const Home = () => {
             updated[cid] = updated[cid].map((m) =>
               String(m._id) === sid
                 ? {
-                    ...m,
-                    status: "cancelled",
-                  }
+                  ...m,
+                  status: "cancelled",
+                }
                 : m
             );
           });
@@ -1538,12 +1581,12 @@ const Home = () => {
             updated[cid] = updated[cid].map((m) =>
               String(m._id) === sid
                 ? {
-                    ...m,
-                    deletedForEveryone: true,
-                    text: "This message was deleted",
-                    file: null,
-                    type: "text",
-                  }
+                  ...m,
+                  deletedForEveryone: true,
+                  text: "This message was deleted",
+                  file: null,
+                  type: "text",
+                }
                 : m
             );
           });
@@ -1605,12 +1648,12 @@ const Home = () => {
             updated[cid] = updated[cid].map((m) =>
               String(m._id) === mid
                 ? {
-                    ...m,
-                    deletedForEveryone: true,
-                    text: text || "This message was deleted",
-                    file: null,
-                    type: "text",
-                  }
+                  ...m,
+                  deletedForEveryone: true,
+                  text: text || "This message was deleted",
+                  file: null,
+                  type: "text",
+                }
                 : m
             );
           });
@@ -1653,11 +1696,13 @@ const Home = () => {
     socket.on("message_reaction_update", reactionHandler);
     socket.on("message_updated", messageUpdatedHandler);
 
-    // Reload recent chats when a new message is received
+    // Debounced reload of recent chats — prevents hammering the API on rapid messages
+    let recentChatsDebounceTimer = null;
     const handleNewMessageForRecentChats = () => {
-      if (activeView === "chats") {
+      if (recentChatsDebounceTimer) clearTimeout(recentChatsDebounceTimer);
+      recentChatsDebounceTimer = setTimeout(() => {
         loadRecentChats();
-      }
+      }, 1500); // debounce 1.5s
     };
 
     socket.on("new_message", handleNewMessageForRecentChats);
@@ -1665,6 +1710,7 @@ const Home = () => {
     socket.on("receive_message", handleNewMessageForRecentChats);
 
     return () => {
+      if (recentChatsDebounceTimer) clearTimeout(recentChatsDebounceTimer);
       socket.off("message_deleted", deletedHandler);
       socket.off("message_reaction_update", reactionHandler);
       socket.off("message_updated", messageUpdatedHandler);
@@ -1786,10 +1832,10 @@ const Home = () => {
 
   return (
     <div className="h-[100dvh] w-full bg-gray-50 dark:bg-neutral-900 flex items-center justify-center overflow-hidden">
-      <div className="w-full h-full md:w-[96%] md:max-w-[1600px] md:h-[94%] md:rounded-2xl bg-white dark:bg-neutral-800/95 backdrop-blur-xl shadow-2xl border border-gray-200 dark:border-neutral-700 flex overflow-hidden relative">
+      <div className="w-full h-full sm:w-full md:w-[96%] md:max-w-[1600px] md:h-[94%] md:rounded-2xl bg-white dark:bg-neutral-800/95 backdrop-blur-xl shadow-2xl border-0 md:border border-gray-200 dark:border-neutral-700 flex flex-col sm:flex-row overflow-hidden relative">
 
-        {/* Icon rail (always visible) */}
-        <div className="w-[80px] shrink-0 h-full">
+        {/* Icon rail — hidden on mobile (bottom nav used instead), visible from sm+ */}
+        <div className="hidden sm:block w-[64px] md:w-[80px] shrink-0 h-full">
           <SidebarIcons
             activeView={activeView}
             onViewChange={setActiveView}
@@ -1816,7 +1862,7 @@ const Home = () => {
         </div>
 
         {/* Main center area: static sidebar on desktop, drawer on mobile/tablet */}
-        <div className="flex-1 min-w-0 h-full flex flex-col lg:flex-row relative">
+        <div className="flex-1 min-w-0 h-full flex flex-col lg:flex-row relative overflow-hidden">
           {/* Static sidebar for desktop */}
           <div className="hidden lg:flex w-[300px] shrink-0 border-r border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800/90 flex-col">
             <div className="px-4 py-3 border-b border-gray-200 dark:border-neutral-700 flex items-center gap-2">
@@ -1914,9 +1960,9 @@ const Home = () => {
                       .map((chat) => {
                         const lastMessageTime = chat.lastMessageTime
                           ? new Date(chat.lastMessageTime).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
                           : "";
                         const lastMessagePreview = chat.lastMessage
                           ? chat.lastMessage.length > 30
@@ -1934,7 +1980,7 @@ const Home = () => {
                               avatar={chat.avatar}
                               message={lastMessagePreview}
                               time={lastMessageTime}
-                              online={onlineUsers.includes(String(chat._id))}
+                              online={onlineUsers.has(String(chat._id))}
                               active={activeChat?._id === chat._id && !activeChat?.isGroup}
                             />
                           </div>
@@ -1955,7 +2001,7 @@ const Home = () => {
                             avatar={contact.avatar}
                             message={contact.bio || "No bio"}
                             time=""
-                            online={onlineUsers.includes(String(contact._id))}
+                            online={onlineUsers.has(String(contact._id))}
                             active={activeChat?._id === contact._id && !activeChat?.isGroup}
                           />
                         </div>
@@ -1977,10 +2023,26 @@ const Home = () => {
             {/* CHAT AREA */}
             {activeView !== "calls" && (
               <div
-                className="flex-1 bg-gray-50 dark:bg-neutral-900 flex flex-col p-3 md:p-5 relative bg-gradient-to-b from-gray-50 to-white dark:from-neutral-900 dark:to-neutral-800/50 min-h-0"
+                className="flex-1 bg-gray-50 dark:bg-neutral-900 flex flex-col p-2 sm:p-3 md:p-5 pb-14 sm:pb-3 md:pb-5 relative bg-gradient-to-b from-gray-50 to-white dark:from-neutral-900 dark:to-neutral-800/50 min-h-0"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
               >
+                {/* Connection status banner */}
+                <AnimatePresence>
+                  {!socketConnected && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden mb-2"
+                    >
+                      <div className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-medium">
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        Reconnecting…
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 {activeChat ? (
                   <>
                     <ChatHeader
@@ -1989,7 +2051,7 @@ const Home = () => {
                       isOnline={blockedByThem ? undefined : userStatus[activeChat._id]?.isOnline}
                       lastSeen={blockedByThem ? undefined : userStatus[activeChat._id]?.lastSeen}
                       onOpenFriendsList={() => setSidebarOpen(true)}
-                      onlineUsersIncludes={blockedByThem ? false : onlineUsers.includes(String(activeChat._id))}
+                      onlineUsersIncludes={blockedByThem ? false : onlineUsers.has(String(activeChat._id))}
                       hideProfilePhoto={blockedByThem}
                       onOpenProfile={() => {
                         if (activeChat.isGroup) {
@@ -2191,72 +2253,74 @@ const Home = () => {
 
         {/* RIGHT PANEL */}
         <div
-          className={`transition-all duration-300 ease-in-out ${
-            activePanel ? "w-full md:w-[340px]" : "w-0"
-          } overflow-hidden absolute md:relative inset-y-0 right-0 z-40`}
+          className={`transition-all duration-300 ease-in-out ${activePanel ? "w-full sm:w-[300px] md:w-[340px]" : "w-0"
+            } overflow-hidden absolute sm:absolute md:relative inset-y-0 right-0 z-40 bg-white dark:bg-neutral-800`}
         >
-          {activePanel === "profile" && (
-            <ProfilePanel
-              onClose={() => setActivePanel(null)}
-              currentUserId={JSON.parse(localStorage.getItem("user"))?.id || JSON.parse(localStorage.getItem("user"))?._id}
-              selectedUserId={profilePanelShowSelf ? null : activeChat?._id}
-              selectedUser={profilePanelShowSelf ? null : activeChat}
-              sharedMediaWithUserId={activeChat?._id}
-              onBlockChange={() => activeChat && amBlocking(activeChat._id).then((r) => setBlockedByMe(!!r.data?.blocking)).catch(() => setBlockedByMe(false))}
-            />
-          )}
-          {activePanel === "groupProfile" && activeChat?.isGroup && (
-            <GroupProfilePanel
-              groupId={activeChat._id}
-              onClose={() => setActivePanel(null)}
-              onGroupUpdated={async () => {
-                await loadGroups();
-                const res = await getUserGroups();
-                const updatedGroup = res.data.groups.find(g => String(g._id) === String(activeChat._id));
-                if (updatedGroup) {
-                  setActiveChat({ ...updatedGroup, isGroup: true });
-                }
-              }}
-              onGroupDisbanded={async () => {
-                await loadGroups();
-                setActiveChat(null);
-              }}
-            />
-          )}
-          {activePanel === "settings" && (
-            <SettingsPanel onClose={() => setActivePanel(null)} />
-          )}
-          {activePanel === "users" && (
-            <UsersPanel onClose={() => setActivePanel(null)} />
-          )}
-          {activePanel === "requests" && (
-            <RequestsPanel
-              onClose={() => setActivePanel(null)}
-              onFriendsUpdated={loadFriends}
-            />
-          )}
+          <Suspense fallback={<PanelLoader />}>
+            {activePanel === "profile" && (
+              <ProfilePanel
+                onClose={() => setActivePanel(null)}
+                currentUserId={JSON.parse(localStorage.getItem("user"))?.id || JSON.parse(localStorage.getItem("user"))?._id}
+                selectedUserId={profilePanelShowSelf ? null : activeChat?._id}
+                selectedUser={profilePanelShowSelf ? null : activeChat}
+                sharedMediaWithUserId={activeChat?._id}
+                onBlockChange={() => activeChat && amBlocking(activeChat._id).then((r) => setBlockedByMe(!!r.data?.blocking)).catch(() => setBlockedByMe(false))}
+              />
+            )}
+            {activePanel === "groupProfile" && activeChat?.isGroup && (
+              <GroupProfilePanel
+                groupId={activeChat._id}
+                onClose={() => setActivePanel(null)}
+                onGroupUpdated={async () => {
+                  await loadGroups();
+                  const res = await getUserGroups();
+                  const updatedGroup = res.data.groups.find(g => String(g._id) === String(activeChat._id));
+                  if (updatedGroup) {
+                    setActiveChat({ ...updatedGroup, isGroup: true });
+                  }
+                }}
+                onGroupDisbanded={async () => {
+                  await loadGroups();
+                  setActiveChat(null);
+                }}
+              />
+            )}
+            {activePanel === "settings" && (
+              <SettingsPanel onClose={() => setActivePanel(null)} />
+            )}
+            {activePanel === "users" && (
+              <UsersPanel onClose={() => setActivePanel(null)} />
+            )}
+            {activePanel === "requests" && (
+              <RequestsPanel
+                onClose={() => setActivePanel(null)}
+                onFriendsUpdated={loadFriends}
+              />
+            )}
+
+          </Suspense>
         </div>
 
         {/* Mobile Panel Overlay */}
         <AnimatePresence>
-        {activePanel && (
-          <motion.div
-            className="md:hidden fixed inset-0 bg-black/50 z-30"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => setActivePanel(null)}
-          />
-        )}
+          {activePanel && (
+            <motion.div
+              className="md:hidden fixed inset-0 bg-black/50 z-30"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setActivePanel(null)}
+            />
+          )}
         </AnimatePresence>
 
-        {/* LEFT SIDEBAR DRAWER (like your reference) */}
+        {/* LEFT SIDEBAR DRAWER — for mobile (full-width, no rail) and tablet (offset by rail) */}
         <AnimatePresence>
           {sidebarOpen && (activeView === "chats" || activeView === "contacts") && (
             <>
               <motion.div
-                className="absolute inset-y-0 left-[80px] right-0 bg-black/40 z-40 lg:hidden"
+                className="absolute inset-y-0 left-0 sm:left-[64px] md:left-[80px] right-0 bg-black/40 z-40 lg:hidden"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -2264,7 +2328,7 @@ const Home = () => {
                 onClick={() => setSidebarOpen(false)}
               />
               <motion.div
-                className="absolute inset-y-0 left-[80px] right-0 lg:hidden bg-white dark:bg-neutral-800/95 backdrop-blur-xl border-r border-gray-200 dark:border-neutral-700 z-50 flex flex-col"
+                className="absolute inset-y-0 left-0 sm:left-[64px] md:left-[80px] right-0 lg:hidden bg-white dark:bg-neutral-800/95 backdrop-blur-xl border-r border-gray-200 dark:border-neutral-700 z-50 flex flex-col"
                 initial={{ x: -24, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: -24, opacity: 0 }}
@@ -2380,9 +2444,9 @@ const Home = () => {
                           .map((chat) => {
                             const lastMessageTime = chat.lastMessageTime
                               ? new Date(chat.lastMessageTime).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
                               : "";
                             const lastMessagePreview = chat.lastMessage
                               ? chat.lastMessage.length > 30
@@ -2403,7 +2467,7 @@ const Home = () => {
                                   avatar={chat.avatar}
                                   message={lastMessagePreview}
                                   time={lastMessageTime}
-                                  online={onlineUsers.includes(String(chat._id))}
+                                  online={onlineUsers.has(String(chat._id))}
                                   active={activeChat?._id === chat._id && !activeChat?.isGroup}
                                 />
                               </div>
@@ -2427,7 +2491,7 @@ const Home = () => {
                                 avatar={contact.avatar}
                                 message={contact.bio || "No bio"}
                                 time=""
-                                online={onlineUsers.includes(String(contact._id))}
+                                online={onlineUsers.has(String(contact._id))}
                                 active={activeChat?._id === contact._id && !activeChat?.isGroup}
                               />
                             </div>
@@ -2441,90 +2505,136 @@ const Home = () => {
         </AnimatePresence>
 
       </div>
-      <ForwardModal
-        isOpen={forwardModalOpen}
-        onClose={() => setForwardModalOpen(false)}
-        onConfirm={handleConfirmForward}
-      />
-      <CreateGroupModal
-        isOpen={createGroupModalOpen}
-        onClose={() => setCreateGroupModalOpen(false)}
-        friends={contacts.length > 0 ? contacts : friends}
-        onGroupCreated={(group) => {
-          setGroups((prev) => [group, ...prev]);
-          setActiveChat({ ...group, isGroup: true });
-        }}
-      />
-      <ScheduleMessageModal
-        isOpen={scheduleMessageModalOpen}
-        onClose={() => {
-          setScheduleMessageModalOpen(false);
-          setScheduleText("");
-        }}
-        receiverId={activeChat && !activeChat.isGroup ? activeChat._id : undefined}
-        groupId={activeChat && activeChat.isGroup ? activeChat._id : undefined}
-        initialText={scheduleText}
-        onScheduled={(scheduledMsg, scheduledDateTime) => {
-          const when = scheduledDateTime instanceof Date ? scheduledDateTime : (scheduledMsg?.scheduledFor ? new Date(scheduledMsg.scheduledFor) : null);
-          if (when && !Number.isNaN(when.getTime())) {
-            toast.success(`Message scheduled for ${when.toLocaleString()}`);
-          } else {
-            toast.success("Message scheduled");
-          }
+      <Suspense fallback={null}>
+        <ForwardModal
+          isOpen={forwardModalOpen}
+          onClose={() => setForwardModalOpen(false)}
+          onConfirm={handleConfirmForward}
+        />
+        <CreateGroupModal
+          isOpen={createGroupModalOpen}
+          onClose={() => setCreateGroupModalOpen(false)}
+          friends={contacts.length > 0 ? contacts : friends}
+          onGroupCreated={(group) => {
+            setGroups((prev) => [group, ...prev]);
+            setActiveChat({ ...group, isGroup: true });
+          }}
+        />
+        <ScheduleMessageModal
+          isOpen={scheduleMessageModalOpen}
+          onClose={() => {
+            setScheduleMessageModalOpen(false);
+            setScheduleText("");
+          }}
+          receiverId={activeChat && !activeChat.isGroup ? activeChat._id : undefined}
+          groupId={activeChat && activeChat.isGroup ? activeChat._id : undefined}
+          initialText={scheduleText}
+          onScheduled={(scheduledMsg, scheduledDateTime) => {
+            const when = scheduledDateTime instanceof Date ? scheduledDateTime : (scheduledMsg?.scheduledFor ? new Date(scheduledMsg.scheduledFor) : null);
+            if (when && !Number.isNaN(when.getTime())) {
+              toast.success(`Message scheduled for ${when.toLocaleString()}`);
+            } else {
+              toast.success("Message scheduled");
+            }
 
-          // Insert scheduled bubble immediately (dim + clock label handled in MessageBubble)
-          const user = JSON.parse(localStorage.getItem("user") || "null");
-          const myId = user?.id || user?._id;
-          if (!myId || !activeChat?._id) return;
+            // Insert scheduled bubble immediately (dim + clock label handled in MessageBubble)
+            const user = JSON.parse(localStorage.getItem("user") || "null");
+            const myId = user?.id || user?._id;
+            if (!myId || !activeChat?._id) return;
 
-          const conversationId = String(activeChat._id);
-          const createdAtIso = when ? when.toISOString() : new Date().toISOString();
-          const time = when
-            ? when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-            : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            const conversationId = String(activeChat._id);
+            const createdAtIso = when ? when.toISOString() : new Date().toISOString();
+            const time = when
+              ? when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-          const bubble = {
-            _id: scheduledMsg?._id != null ? String(scheduledMsg._id) : undefined,
-            clientMessageId: scheduledMsg?.clientMessageId,
-            type: scheduledMsg?.messageType || scheduledMsg?.type || "text",
-            text: scheduledMsg?.text || "",
-            originalText: scheduledMsg?.originalText ?? scheduledMsg?.text ?? "",
-            translatedText: scheduledMsg?.translatedText ?? scheduledMsg?.text ?? "",
-            detectedLanguage: scheduledMsg?.detectedLanguage,
-            isOwn: true,
-            time,
-            createdAt: createdAtIso,
-            status: "scheduled",
-            scheduledFor: createdAtIso,
-            reactions: [],
-          };
+            const bubble = {
+              _id: scheduledMsg?._id != null ? String(scheduledMsg._id) : undefined,
+              clientMessageId: scheduledMsg?.clientMessageId,
+              type: scheduledMsg?.messageType || scheduledMsg?.type || "text",
+              text: scheduledMsg?.text || "",
+              originalText: scheduledMsg?.originalText ?? scheduledMsg?.text ?? "",
+              translatedText: scheduledMsg?.translatedText ?? scheduledMsg?.text ?? "",
+              detectedLanguage: scheduledMsg?.detectedLanguage,
+              isOwn: true,
+              time,
+              createdAt: createdAtIso,
+              status: "scheduled",
+              scheduledFor: createdAtIso,
+              reactions: [],
+            };
 
-          setMessages((prev) => ({
-            ...prev,
-            [conversationId]: mergeMessageLists(prev[conversationId] || [], [bubble]),
-          }));
-        }}
-      />
+            setMessages((prev) => ({
+              ...prev,
+              [conversationId]: mergeMessageLists(prev[conversationId] || [], [bubble]),
+            }));
+          }}
+        />
+      </Suspense>
 
-      {/* Floating scroll-to-bottom button */}
+      {/* Floating scroll-to-bottom button — absolute within app container */}
       {showScrollToBottom && (
         <button
           type="button"
           onClick={handleScrollToBottom}
-          className="fixed bottom-20 right-5 z-40 w-10 h-10 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg flex items-center justify-center transition-all"
+          className="absolute bottom-20 sm:bottom-8 right-4 sm:right-5 z-40 w-10 h-10 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg flex items-center justify-center transition-all active:scale-90"
         >
           ↓
         </button>
       )}
 
-      {/* Sticky floating date while scrolling */}
+      {/* Sticky floating date while scrolling — absolute within container */}
       {floatingDateLabel && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-30">
-          <span className="px-3 py-1 text-xs bg-neutral-800 text-neutral-400 rounded-full shadow-md">
+        <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+          <span className="px-3 py-1 text-xs bg-neutral-800/90 text-neutral-300 rounded-full shadow-md backdrop-blur-sm">
             {floatingDateLabel}
           </span>
         </div>
       )}
+
+      {/* Mobile Bottom Navigation — visible only on xs screens (below sm breakpoint) */}
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-neutral-700 flex items-center justify-around py-1 pb-[env(safe-area-inset-bottom)]">
+        <button
+          type="button"
+          onClick={() => { setActiveView("chats"); setActivePanel(null); setSidebarOpen((o) => !o); }}
+          className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activeView === "chats" && sidebarOpen ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+        >
+          <MessageCircle size={20} />
+          <span className="text-[10px] font-medium">Chats</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => { setActiveView("contacts"); setActivePanel(null); setSidebarOpen((o) => !o); }}
+          className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activeView === "contacts" && sidebarOpen ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+        >
+          <UsersIcon size={20} />
+          <span className="text-[10px] font-medium">Contacts</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => { setActiveView("calls"); setActivePanel(null); setSidebarOpen(false); }}
+          className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activeView === "calls" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" /></svg>
+          <span className="text-[10px] font-medium">Calls</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActivePanel(activePanel === "settings" ? null : "settings")}
+          className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activePanel === "settings" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>
+          <span className="text-[10px] font-medium">Settings</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => { setProfilePanelShowSelf(true); setActivePanel(activePanel === "profile" ? null : "profile"); }}
+          className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activePanel === "profile" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+          <span className="text-[10px] font-medium">Profile</span>
+        </button>
+      </div>
     </div>
   );
 };

@@ -33,7 +33,7 @@ const SidebarIcons = ({
     }`;
 
   return (
-    <div className="w-[80px] bg-white dark:bg-neutral-800/95 backdrop-blur-sm flex flex-col items-center py-5 justify-between border-r border-gray-200 dark:border-neutral-700 h-full shadow-lg">
+    <div className="w-full bg-white dark:bg-neutral-800/95 backdrop-blur-sm flex flex-col items-center py-3 md:py-5 justify-between border-r border-gray-200 dark:border-neutral-700 h-full shadow-lg">
 
       {/* Top */}
       <div className="flex flex-col items-center gap-5">
