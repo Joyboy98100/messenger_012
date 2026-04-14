@@ -45,7 +45,6 @@ import {
   Phone,
   Settings,
   User,
-  ChevronRight,
 } from "lucide-react";
 import { useToastContext } from "../context/ToastContext";
 import { motion, AnimatePresence } from "framer-motion";
@@ -2615,11 +2614,11 @@ const Home = () => {
 
       {/* Mobile/Tablet Bottom Navigation — horizontal slider */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-neutral-700 py-1 pb-[env(safe-area-inset-bottom)]">
-        <div className="flex items-center gap-1 overflow-x-auto px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center overflow-x-auto px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <button
           type="button"
           onClick={() => { setActiveView("chats"); setActivePanel(null); setSidebarOpen((o) => !o); }}
-          className={`min-w-[72px] flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activeView === "chats" && sidebarOpen ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+          className={`shrink-0 w-[20%] flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg transition-colors ${activeView === "chats" && sidebarOpen ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
         >
           <MessageCircle size={20} />
           <span className="text-[10px] font-medium">Chats</span>
@@ -2627,7 +2626,7 @@ const Home = () => {
         <button
           type="button"
           onClick={() => { setActiveView("contacts"); setActivePanel(null); setSidebarOpen((o) => !o); }}
-          className={`min-w-[72px] flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activeView === "contacts" && sidebarOpen ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+          className={`shrink-0 w-[20%] flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg transition-colors ${activeView === "contacts" && sidebarOpen ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
         >
           <UsersIcon size={20} />
           <span className="text-[10px] font-medium">Contacts</span>
@@ -2635,31 +2634,15 @@ const Home = () => {
         <button
           type="button"
           onClick={() => { setActiveView("calls"); setActivePanel(null); setSidebarOpen(false); }}
-          className={`min-w-[72px] flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activeView === "calls" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+          className={`shrink-0 w-[20%] flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg transition-colors ${activeView === "calls" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
         >
           <Phone size={20} />
           <span className="text-[10px] font-medium">Calls</span>
         </button>
         <button
           type="button"
-          onClick={() => { setSidebarOpen(false); setActivePanel((p) => p === "requests" ? null : "requests"); }}
-          className={`min-w-[84px] flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activePanel === "requests" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
-        >
-          <Bell size={20} />
-          <span className="text-[10px] font-medium">Alerts</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => { setSidebarOpen(false); setActivePanel((p) => p === "users" ? null : "users"); }}
-          className={`min-w-[84px] flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activePanel === "users" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
-        >
-          <UserPlus size={20} />
-          <span className="text-[10px] font-medium">Discover</span>
-        </button>
-        <button
-          type="button"
           onClick={() => { setSidebarOpen(false); setActivePanel((p) => p === "settings" ? null : "settings"); }}
-          className={`min-w-[72px] flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activePanel === "settings" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+          className={`shrink-0 w-[20%] flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg transition-colors ${activePanel === "settings" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
         >
           <Settings size={20} />
           <span className="text-[10px] font-medium">Settings</span>
@@ -2667,16 +2650,27 @@ const Home = () => {
         <button
           type="button"
           onClick={() => { setSidebarOpen(false); setProfilePanelShowSelf(true); setActivePanel((p) => p === "profile" ? null : "profile"); }}
-          className={`min-w-[72px] flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${activePanel === "profile" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+          className={`shrink-0 w-[20%] flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg transition-colors ${activePanel === "profile" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
         >
           <User size={20} />
           <span className="text-[10px] font-medium">Profile</span>
         </button>
-        </div>
-        {/* Swipe hint */}
-        <div className="pointer-events-none absolute right-0 top-0 h-full w-10 bg-gradient-to-l from-white dark:from-neutral-800 to-transparent" />
-        <div className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-white/80 dark:bg-neutral-700/80 p-1 text-gray-500 dark:text-neutral-300 shadow-sm">
-          <ChevronRight size={14} />
+        <button
+          type="button"
+          onClick={() => { setSidebarOpen(false); setActivePanel((p) => p === "requests" ? null : "requests"); }}
+          className={`shrink-0 w-[20%] flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg transition-colors ${activePanel === "requests" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+        >
+          <Bell size={20} />
+          <span className="text-[10px] font-medium">Alerts</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => { setSidebarOpen(false); setActivePanel((p) => p === "users" ? null : "users"); }}
+          className={`shrink-0 w-[20%] flex flex-col items-center gap-0.5 px-1 py-1.5 rounded-lg transition-colors ${activePanel === "users" ? "text-emerald-500" : "text-gray-500 dark:text-neutral-400"}`}
+        >
+          <UserPlus size={20} />
+          <span className="text-[10px] font-medium">Discover</span>
+        </button>
         </div>
       </div>
     </div>
