@@ -51,7 +51,6 @@ import {
   setLastSyncTimestamp,
 } from "../realtime/cache";
 import { enqueueOutbox, listOutbox, removeOutbox } from "../realtime/outbox";
-import { useWebRTCCall } from "../context/useWebRTCCall";
 
 /* Small spinner for lazy-loaded panels */
 const PanelLoader = () => (
@@ -88,7 +87,6 @@ const Home = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const toast = useToastContext();
-  const { missedCalls, consumeMissedCall, startOutgoingCall } = useWebRTCCall();
 
   const messagesContainerRef = useRef(null);
   const [userStatus, setUserStatus] = useState({});
@@ -129,47 +127,6 @@ const Home = () => {
   const [currentScrollTop, setCurrentScrollTop] = useState(0);
   const scrollRafRef = useRef(null);
   const lastActiveChatIdRef = useRef(null);
-
-  useEffect(() => {
-    if (!missedCalls.length) return;
-    missedCalls.forEach((event) => {
-      const chatId = String(event.callerId || "");
-      if (!chatId) return;
-      setMessages((prev) => {
-        const list = prev[chatId] || [];
-        const exists = list.some((m) => String(m._id) === String(event.id));
-        if (exists) return prev;
-        const d = new Date(event.at);
-        const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        const bubble = {
-          _id: event.id,
-          type: "missed_call",
-          text: `Missed ${event.callType} call`,
-          createdAt: d.toISOString(),
-          time,
-          isOwn: false,
-          callerId: chatId,
-          callType: event.callType,
-        };
-        return { ...prev, [chatId]: [...list, bubble] };
-      });
-      consumeMissedCall(event.id);
-    });
-  }, [missedCalls, consumeMissedCall]);
-
-  useEffect(() => {
-    const onOpenChat = (evt) => {
-      const targetId = String(evt?.detail?.userId || "");
-      if (!targetId) return;
-      const combined = [...(recentChats || []), ...(contacts || []), ...(friends || [])];
-      const target = combined.find((u) => String(u._id) === targetId);
-      if (target) {
-        setActiveChat(target);
-      }
-    };
-    window.addEventListener("webrtc:open-chat", onOpenChat);
-    return () => window.removeEventListener("webrtc:open-chat", onOpenChat);
-  }, [recentChats, contacts, friends]);
 
   const queueConversationCacheWrite = useCallback((conversationId, list) => {
     if (!conversationId || !Array.isArray(list)) return;
@@ -2198,23 +2155,7 @@ const Home = () => {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.25, ease: "easeOut" }}
                               >
-                                {msg.type === "missed_call" ? (
-                                  <MessageBubble
-                                    id={msg._id}
-                                    text={msg.text ?? ""}
-                                    isOwn={msg.isOwn}
-                                    type="missed_call"
-                                    time={msg.time}
-                                    onCallBack={() =>
-                                      msg.callerId &&
-                                      startOutgoingCall({
-                                        toUserId: msg.callerId,
-                                        type: msg.callType === "video" ? "video" : "voice",
-                                        peerName: activeChat?.username || "User",
-                                      })
-                                    }
-                                  />
-                                ) : msg.type === "voice" ? (
+                                {msg.type === "voice" ? (
                                   <VoiceMessageBubble
                                     id={msg._id}
                                     audioUrl={msg.file || msg.audioUrl}

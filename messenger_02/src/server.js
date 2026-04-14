@@ -119,13 +119,6 @@ app.get("/", (req, res) => {
   res.send("API running...");
 });
 
-app.post("/api/calls/beacon-ended", (req, res) => {
-  // sendBeacon unload-safe fallback; WS emits may not flush during tab close.
-  const { callId, fromUserId, reason, at } = req.body || {};
-  console.log("Beacon call end:", { callId, fromUserId, reason, at });
-  res.status(204).end();
-});
-
 /* ---------------- SOCKET LOGIC ---------------- */
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
@@ -602,179 +595,117 @@ io.on("connection", (socket) => {
   /* ---------- CALL SIGNALING ---------- */
   const callTimeouts = app.get("callTimeouts") || new Map();
   app.set("callTimeouts", callTimeouts);
-  const activeCallByUser = app.get("activeCallByUser") || new Map(); // userId -> callId
-  app.set("activeCallByUser", activeCallByUser);
-  const pendingPairCalls = app.get("pendingPairCalls") || new Map(); // sortedPair -> { callId, callerId, calleeId }
-  app.set("pendingPairCalls", pendingPairCalls);
-
-  const getPairKey = (a, b) => [String(a), String(b)].sort().join(":");
-
-  const emitCallInitiate = ({ callerId, receiverId, callType, callerName, callId }) => {
-    const receiverRoom = onlineUsers[String(receiverId)];
-    if (!receiverRoom) return false;
-    io.to(receiverRoom).emit("incoming_call", {
-      callerId,
-      receiverId,
-      callType: callType || "audio",
-      callerName: callerName || "Someone",
-      callId,
-    });
-    io.to(receiverRoom).emit("call:initiate", {
-      callId,
-      fromUserId: String(callerId),
-      toUserId: String(receiverId),
-      fromName: callerName || "Someone",
-      type: callType === "video" ? "video" : "voice",
-    });
-    return true;
-  };
-
-  const scheduleMissedTimer = ({ callerId, receiverId, callType, callerName, callId }) => {
-    const key = callId ? String(callId) : `${callerId}:${receiverId}`;
-    if (callTimeouts.has(key)) {
-      clearTimeout(callTimeouts.get(key));
-    }
-    const timeoutId = setTimeout(async () => {
-      callTimeouts.delete(key);
-      try {
-        let call = null;
-        if (callId) {
-          call = await Call.findById(String(callId));
-        }
-        if (!call) {
-          call = await Call.findOne({
-            caller: callerId,
-            receiver: receiverId,
-          }).sort({ startedAt: -1 });
-        }
-
-        const now = new Date();
-        if (call && call.status === "ongoing") {
-          call.status = "missed";
-          call.endedAt = now;
-          call.duration = 0;
-          await call.save();
-        } else if (!call) {
-          call = await Call.create({
-            caller: callerId,
-            receiver: receiverId,
-            type: callType || "audio",
-            status: "missed",
-            direction: "outgoing",
-            startedAt: now,
-            endedAt: now,
-            duration: 0,
-          });
-        }
-
-        const notification = await Notification.create({
-          userId: receiverId,
-          type: "missed_call",
-          isRead: false,
-          metadata: {
-            callerId,
-            callType: callType || "audio",
-          },
-        });
-        io.to(String(receiverId)).emit("notification_created", notification);
-
-        const finalCallId = call ? String(call._id) : callId ? String(callId) : undefined;
-        io.to(String(callerId)).emit("call_timeout", { callId: finalCallId, status: "missed" });
-        io.to(String(receiverId)).emit("call_timeout", { callId: finalCallId, status: "missed" });
-        io.to(String(callerId)).emit("call:missed", { callId: finalCallId, callerId, calleeId: receiverId, reason: "timeout" });
-        io.to(String(receiverId)).emit("call:missed", { callId: finalCallId, callerId, calleeId: receiverId, reason: "timeout" });
-        io.to(String(receiverId)).emit("missed_call", {
-          callerId,
-          callerName: callerName || "Someone",
-          callType: callType || "audio",
-        });
-
-        activeCallByUser.delete(String(callerId));
-        activeCallByUser.delete(String(receiverId));
-        pendingPairCalls.delete(getPairKey(callerId, receiverId));
-      } catch (err) {
-        console.error("Auto-missed-call timer error:", err);
-      }
-    }, 15_000);
-    callTimeouts.set(key, timeoutId);
-  };
-
-  const startCallFlow = async ({ callerId, receiverId, callType, callerName, callId }, ackSocket = null) => {
-    if (await isBlocked(receiverId, callerId)) {
-      io.to(socket.id).emit("call_rejected", { message: "User has blocked you" });
-      ackSocket?.({ ok: false, error: "blocked" });
-      return;
-    }
-
-    // D: callee already on another call
-    if (activeCallByUser.has(String(receiverId))) {
-      io.to(String(callerId)).emit("call:busy", { callId, calleeId: String(receiverId) });
-      ackSocket?.({ ok: false, error: "busy" });
-      return;
-    }
-
-    // A: simultaneous calls (glare) with lexical caller policy
-    const pairKey = getPairKey(callerId, receiverId);
-    const pending = pendingPairCalls.get(pairKey);
-    if (pending) {
-      const winnerCaller = [String(callerId), String(receiverId)].sort()[0];
-      if (String(callerId) !== winnerCaller) {
-        io.to(String(callerId)).emit("call:rejected", { callId, reason: "simultaneous_call_lost" });
-        ackSocket?.({ ok: false, error: "simultaneous_call_lost", callId: pending.callId });
-        return;
-      }
-    }
-
-    const delivered = emitCallInitiate({ callerId, receiverId, callType, callerName, callId });
-    if (!delivered) {
-      io.to(socket.id).emit("call_rejected", { message: "User is offline" });
-      ackSocket?.({ ok: false, error: "offline" });
-      return;
-    }
-
-    activeCallByUser.set(String(callerId), String(callId));
-    activeCallByUser.set(String(receiverId), String(callId));
-    pendingPairCalls.set(pairKey, {
-      callId: String(callId),
-      callerId: String(callerId),
-      calleeId: String(receiverId),
-    });
-
-    io.to(String(callerId)).emit("call:ringing", {
-      callId: String(callId),
-      fromUserId: String(callerId),
-      toUserId: String(receiverId),
-      type: callType === "video" ? "video" : "voice",
-    });
-    scheduleMissedTimer({ callerId, receiverId, callType, callerName, callId });
-    ackSocket?.({ ok: true, callId: String(callId) });
-  };
 
   socket.on("call_user", async ({ callerId, receiverId, callType, callerName, callId }) => {
     try {
-      await startCallFlow({ callerId, receiverId, callType, callerName, callId });
-    } catch (err) {
-      console.error("call_user error:", err);
-    }
-  });
-
-  socket.on("call:initiate", async ({ toUserId, fromUserId, type, callId }, ack) => {
-    try {
-      const callerId = socket.data.userId || socket.data.authUserId || fromUserId;
-      if (!callerId || !toUserId) {
-        ack?.({ ok: false, error: "invalid_payload" });
+      if (await isBlocked(receiverId, callerId)) {
+        io.to(socket.id).emit("call_rejected", { message: "User has blocked you" });
         return;
       }
-      await startCallFlow({
-        callerId: String(callerId),
-        receiverId: String(toUserId),
-        callType: type === "video" ? "video" : "audio",
-        callerName: "Someone",
-        callId: String(callId || new mongoose.Types.ObjectId()),
-      }, ack);
+
+      const receiverRoom = onlineUsers[String(receiverId)];
+      if (receiverRoom) {
+        io.to(receiverRoom).emit("incoming_call", {
+          callerId,
+          receiverId,
+          callType: callType || "audio",
+          callerName: callerName || "Someone",
+          callId,
+        });
+      } else {
+        io.to(socket.id).emit("call_rejected", { message: "User is offline" });
+        return;
+      }
+
+      // Auto-missed-call timer (15s) for unanswered calls
+      const key = callId ? String(callId) : `${callerId}:${receiverId}`;
+      if (callTimeouts.has(key)) {
+        clearTimeout(callTimeouts.get(key));
+      }
+      const timeoutId = setTimeout(async () => {
+        callTimeouts.delete(key);
+        try {
+          // Find most recent ongoing call between these users
+          let call = null;
+          if (callId) {
+            call = await Call.findById(String(callId));
+          }
+          if (!call) {
+            call = await Call.findOne({
+              caller: callerId,
+              receiver: receiverId,
+            }).sort({ startedAt: -1 });
+          }
+
+          const now = new Date();
+          if (call && call.status === "ongoing") {
+            call.status = "missed";
+            call.endedAt = now;
+            call.duration = 0;
+            await call.save();
+          } else if (!call) {
+            // Fallback: log missed call if nothing exists
+            call = await Call.create({
+              caller: callerId,
+              receiver: receiverId,
+              type: callType || "audio",
+              status: "missed",
+              direction: "outgoing",
+              startedAt: now,
+              endedAt: now,
+              duration: 0,
+            });
+          }
+
+          // Create missed call notification for receiver
+          const notification = await Notification.create({
+            userId: receiverId,
+            type: "missed_call",
+            isRead: false,
+            metadata: {
+              callerId,
+              callType: callType || "audio",
+            },
+          });
+
+          // Emit full notification object in real-time for panels & badges
+          // Only emit notification_created to avoid duplicate processing
+          io.to(String(receiverId)).emit("notification_created", notification);
+
+          const finalCallId = call ? String(call._id) : callId ? String(callId) : undefined;
+
+          // Notify both parties that the call timed out so UIs can close without refresh
+          if (finalCallId) {
+            io.to(String(callerId)).emit("call_timeout", {
+              callId: finalCallId,
+              status: "missed",
+            });
+            io.to(String(receiverId)).emit("call_timeout", {
+              callId: finalCallId,
+              status: "missed",
+            });
+          } else {
+            io.to(String(callerId)).emit("call_timeout", {
+              status: "missed",
+            });
+            io.to(String(receiverId)).emit("call_timeout", {
+              status: "missed",
+            });
+          }
+
+          // Backwards compatible missed-call event for call notification badges
+          io.to(String(receiverId)).emit("missed_call", {
+            callerId,
+            callerName: callerName || "Someone",
+            callType: callType || "audio",
+          });
+        } catch (err) {
+          console.error("Auto-missed-call timer error:", err);
+        }
+      }, 15_000);
+      callTimeouts.set(key, timeoutId);
     } catch (err) {
-      console.error("call:initiate error:", err);
-      ack?.({ ok: false, error: "internal_error" });
+      console.error("call_user error:", err);
     }
   });
 
@@ -787,27 +718,6 @@ io.on("connection", (socket) => {
     }
     const callerRoom = onlineUsers[String(callerId)];
     if (callerRoom) io.to(callerRoom).emit("call_accepted", { receiverId });
-    if (callerRoom) io.to(callerRoom).emit("call:accepted", { callId, callerId, calleeId: receiverId });
-  });
-
-  socket.on("call:accepted", ({ callId }, ack) => {
-    // identify caller from pending pair map
-    const entry = Array.from(pendingPairCalls.values()).find((x) => String(x.callId) === String(callId));
-    if (!entry) {
-      ack?.({ ok: false, error: "not_found" });
-      return;
-    }
-    const key = String(callId);
-    if (callTimeouts.has(key)) {
-      clearTimeout(callTimeouts.get(key));
-      callTimeouts.delete(key);
-    }
-    io.to(String(entry.callerId)).emit("call:accepted", {
-      callId: String(callId),
-      callerId: String(entry.callerId),
-      calleeId: String(entry.calleeId),
-    });
-    ack?.({ ok: true });
   });
 
   socket.on("reject_call", ({ callerId, receiverId, callId }) => {
@@ -819,28 +729,6 @@ io.on("connection", (socket) => {
     }
     const callerRoom = onlineUsers[String(callerId)];
     if (callerRoom) io.to(callerRoom).emit("call_rejected", { receiverId });
-    if (callerRoom) io.to(callerRoom).emit("call:rejected", { callId, reason: "declined" });
-    activeCallByUser.delete(String(callerId));
-    activeCallByUser.delete(String(receiverId));
-    pendingPairCalls.delete(getPairKey(callerId, receiverId));
-  });
-
-  socket.on("call:rejected", ({ callId, reason }, ack) => {
-    const entry = Array.from(pendingPairCalls.values()).find((x) => String(x.callId) === String(callId));
-    if (!entry) {
-      ack?.({ ok: false, error: "not_found" });
-      return;
-    }
-    const key = String(callId);
-    if (callTimeouts.has(key)) {
-      clearTimeout(callTimeouts.get(key));
-      callTimeouts.delete(key);
-    }
-    io.to(String(entry.callerId)).emit("call:rejected", { callId, reason: reason || "declined" });
-    activeCallByUser.delete(String(entry.callerId));
-    activeCallByUser.delete(String(entry.calleeId));
-    pendingPairCalls.delete(getPairKey(entry.callerId, entry.calleeId));
-    ack?.({ ok: true });
   });
 
   socket.on("offer", ({ to, from, offer }) => {
@@ -848,46 +736,14 @@ io.on("connection", (socket) => {
     if (toRoom) io.to(toRoom).emit("offer", { from, offer });
   });
 
-  socket.on("call:offer", ({ callId, sdpOffer }, ack) => {
-    const entry = Array.from(pendingPairCalls.values()).find((x) => String(x.callId) === String(callId));
-    if (!entry) {
-      ack?.({ ok: false, error: "not_found" });
-      return;
-    }
-    io.to(String(entry.calleeId)).emit("call:offer", { callId, fromUserId: String(entry.callerId), sdpOffer });
-    ack?.({ ok: true });
-  });
-
   socket.on("answer", ({ to, from, answer }) => {
     const toRoom = onlineUsers[String(to)];
     if (toRoom) io.to(toRoom).emit("answer", { from, answer });
   });
 
-  socket.on("call:answer", ({ callId, sdpAnswer }, ack) => {
-    const entry = Array.from(pendingPairCalls.values()).find((x) => String(x.callId) === String(callId));
-    if (!entry) {
-      ack?.({ ok: false, error: "not_found" });
-      return;
-    }
-    io.to(String(entry.callerId)).emit("call:answer", { callId, fromUserId: String(entry.calleeId), sdpAnswer });
-    ack?.({ ok: true });
-  });
-
   socket.on("ice_candidate", ({ to, from, candidate }) => {
     const toRoom = onlineUsers[String(to)];
     if (toRoom) io.to(toRoom).emit("ice_candidate", { from, candidate });
-  });
-
-  socket.on("call:ice-candidate", ({ callId, candidate }, ack) => {
-    const entry = Array.from(pendingPairCalls.values()).find((x) => String(x.callId) === String(callId));
-    if (!entry) {
-      ack?.({ ok: false, error: "not_found" });
-      return;
-    }
-    const fromId = String(socket.data.userId || socket.data.authUserId || "");
-    const target = fromId === String(entry.callerId) ? entry.calleeId : entry.callerId;
-    io.to(String(target)).emit("call:ice-candidate", { callId, fromUserId: fromId, candidate });
-    ack?.({ ok: true });
   });
 
   socket.on("end_call", ({ to, from, callId }) => {
@@ -899,43 +755,6 @@ io.on("connection", (socket) => {
     }
     const toRoom = onlineUsers[String(to)];
     if (toRoom) io.to(toRoom).emit("call_ended", { from });
-    if (toRoom) io.to(toRoom).emit("call:ended", { callId, reason: "hangup" });
-    activeCallByUser.delete(String(to));
-    activeCallByUser.delete(String(from));
-    pendingPairCalls.delete(getPairKey(from, to));
-  });
-
-  socket.on("call:ended", ({ callId, reason }, ack) => {
-    const entry = Array.from(pendingPairCalls.values()).find((x) => String(x.callId) === String(callId));
-    if (!entry) {
-      ack?.({ ok: false, error: "not_found" });
-      return;
-    }
-    const key = String(callId);
-    if (callTimeouts.has(key)) {
-      clearTimeout(callTimeouts.get(key));
-      callTimeouts.delete(key);
-    }
-    io.to(String(entry.callerId)).emit("call:ended", { callId, reason: reason || "hangup" });
-    io.to(String(entry.calleeId)).emit("call:ended", { callId, reason: reason || "hangup" });
-    activeCallByUser.delete(String(entry.callerId));
-    activeCallByUser.delete(String(entry.calleeId));
-    pendingPairCalls.delete(getPairKey(entry.callerId, entry.calleeId));
-    ack?.({ ok: true });
-  });
-
-  socket.on("call:cancel", ({ callId }) => {
-    const entry = Array.from(pendingPairCalls.values()).find((x) => String(x.callId) === String(callId));
-    if (!entry) return;
-    const key = String(callId);
-    if (callTimeouts.has(key)) {
-      clearTimeout(callTimeouts.get(key));
-      callTimeouts.delete(key);
-    }
-    io.to(String(entry.calleeId)).emit("call:cancelled", { callId, reason: "caller_cancelled" });
-    activeCallByUser.delete(String(entry.callerId));
-    activeCallByUser.delete(String(entry.calleeId));
-    pendingPairCalls.delete(getPairKey(entry.callerId, entry.calleeId));
   });
 
   socket.on("disconnect", () => {

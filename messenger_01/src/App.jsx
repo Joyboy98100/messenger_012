@@ -8,8 +8,8 @@ import { DarkModeProvider } from "./context/DarkModeContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import { TranslationProvider } from "./context/TranslationContext";
+import { CallProvider } from "./context/CallContext";
 import { CallNotificationProvider } from "./context/CallNotificationContext";
-import { WebRTCCallProvider } from "./context/WebRTCCallContext";
 
 // Lazy-loaded route components — only downloaded when navigated to
 const Auth = React.lazy(() => import("./pages/Auth"));
@@ -18,7 +18,9 @@ const AdminDashboard = React.lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminUsers = React.lazy(() => import("./pages/admin/AdminUsers"));
 const AdminReports = React.lazy(() => import("./pages/admin/AdminReports"));
 
-const WebRTCCallLayer = React.lazy(() => import("./components/call/WebRTCCallLayer"));
+// Lazy-loaded call overlays — rarely needed on initial load
+const IncomingCallModal = React.lazy(() => import("./components/call/IncomingCallModal"));
+const CallScreen = React.lazy(() => import("./components/call/CallScreen"));
 
 /* Full-screen loading spinner shown while lazy chunks download */
 const PageLoader = () => (
@@ -40,42 +42,43 @@ function App() {
         <DarkModeProvider>
           <LanguageProvider>
             <TranslationProvider>
-              <WebRTCCallProvider>
+              <CallProvider>
                 <CallNotificationProvider>
-                  <NotificationProvider>
-                    <Suspense fallback={<PageLoader />}>
-                      <Routes>
-                        <Route path="/" element={<Auth />} />
+                <NotificationProvider>
+            <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Auth />} />
 
-                        <Route
-                          path="/home"
-                          element={
-                            <ProtectedRoute>
-                              <Home />
-                            </ProtectedRoute>
-                          }
-                        />
+              <Route
+                path="/home"
+                element={
+                  <ProtectedRoute>
+                    <Home />
+                  </ProtectedRoute>
+                }
+              />
 
-                        <Route
-                          path="/admin/*"
-                          element={
-                            <AdminRoute>
-                              <AdminLayout />
-                            </AdminRoute>
-                          }
-                        >
-                          <Route path="dashboard" element={<AdminDashboard />} />
-                          <Route path="users" element={<AdminUsers />} />
-                          <Route path="reports" element={<AdminReports />} />
-                        </Route>
-                      </Routes>
-                    </Suspense>
-                  </NotificationProvider>
+              <Route
+                path="/admin/*"
+                element={
+                  <AdminRoute>
+                    <AdminLayout />
+                  </AdminRoute>
+                }
+              >
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="reports" element={<AdminReports />} />
+              </Route>
+            </Routes>
+            </Suspense>
+                </NotificationProvider>
                 </CallNotificationProvider>
                 <Suspense fallback={null}>
-                  <WebRTCCallLayer />
+                  <IncomingCallModal />
+                  <CallScreen />
                 </Suspense>
-              </WebRTCCallProvider>
+              </CallProvider>
             </TranslationProvider>
           </LanguageProvider>
         </DarkModeProvider>

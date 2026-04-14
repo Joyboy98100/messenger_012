@@ -65,6 +65,7 @@ const MessageBubble = ({
   forwarded = false,
   deletedForEveryone = false,
   edited = false,
+  editedAt,
   highlightQuery = "",
   onCopy,
   onDeleteForMe,
@@ -72,7 +73,6 @@ const MessageBubble = ({
   onReact,
   onForward,
   onSaveEdit,
-  onCallBack,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
@@ -206,21 +206,6 @@ const MessageBubble = ({
             </p>
           ) : (
             <>
-              {type === "missed_call" && (
-                <div className="rounded-xl bg-red-100/80 dark:bg-red-900/30 border border-red-200/80 dark:border-red-800 px-2.5 py-2">
-                  <p className="text-sm">📵 Missed {text?.includes("video") ? "video" : "voice"} call</p>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCallBack?.(id);
-                    }}
-                    className="text-xs underline mt-1"
-                  >
-                    Call back
-                  </button>
-                </div>
-              )}
               {/* TEXT */}
               {type === "text" && isEditing ? (
                 <div className="max-w-[90%] flex flex-col gap-2">

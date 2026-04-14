@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import Avatar from "../common/Avatar";
+import CallButtons from "../call/CallButtons";
 import MessageSearchBar from "./MessageSearchBar";
 import { Menu, MoreVertical, Search, X, Phone, Video, User, Shield, ShieldOff } from "lucide-react";
-import { useWebRTCCall } from "../../context/useWebRTCCall";
+import { useCall } from "../../context/CallContext";
 
 /* ─── helpers ─── */
 const formatLastSeen = (lastSeen) => {
@@ -61,8 +62,8 @@ const ChatHeader = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSearchBar, setShowSearchBar] = useState(false);
   const menuRef = useRef(null);
-  const { startOutgoingCall, state: callState } = useWebRTCCall();
-  const callBusy = callState !== "IDLE";
+  const { startCall, callState } = useCall();
+  const callBusy = callState !== "idle";
 
   /* close menu on outside click */
   const handleClickOutside = useCallback((e) => {
@@ -110,19 +111,11 @@ const ChatHeader = ({
   /* ─── call handlers ─── */
   const handleAudioCall = () => {
     if (callBusy || !activeChat._id || isGroup) return;
-    startOutgoingCall({
-      toUserId: activeChat._id,
-      type: "voice",
-      peerName: activeChat.username,
-    });
+    startCall("audio", activeChat._id, activeChat.username);
   };
   const handleVideoCall = () => {
     if (callBusy || !activeChat._id || isGroup) return;
-    startOutgoingCall({
-      toUserId: activeChat._id,
-      type: "video",
-      peerName: activeChat.username,
-    });
+    startCall("video", activeChat._id, activeChat.username);
   };
 
   /* ────────────────────────────────────────────────
@@ -217,7 +210,7 @@ const ChatHeader = ({
           <>
             <IconBtn
               onClick={handleAudioCall}
-              disabled={callBusy}
+              disabled={callBusy || !isOnlineNow}
               label="Audio call"
               className="hidden md:flex"
             >
@@ -225,7 +218,7 @@ const ChatHeader = ({
             </IconBtn>
             <IconBtn
               onClick={handleVideoCall}
-              disabled={callBusy}
+              disabled={callBusy || !isOnlineNow}
               label="Video call"
               className="hidden md:flex"
             >
@@ -262,7 +255,7 @@ const ChatHeader = ({
                 <button
                   type="button"
                   onClick={() => { handleAudioCall(); setMenuOpen(false); }}
-                  disabled={callBusy}
+                  disabled={callBusy || !isOnlineNow}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-neutral-200 hover:bg-gray-50 dark:hover:bg-neutral-700/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors md:hidden"
                 >
                   <Phone size={16} className="shrink-0 text-emerald-500" />
@@ -275,7 +268,7 @@ const ChatHeader = ({
                 <button
                   type="button"
                   onClick={() => { handleVideoCall(); setMenuOpen(false); }}
-                  disabled={callBusy}
+                  disabled={callBusy || !isOnlineNow}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-neutral-200 hover:bg-gray-50 dark:hover:bg-neutral-700/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors md:hidden"
                 >
                   <Video size={16} className="shrink-0 text-blue-500" />
