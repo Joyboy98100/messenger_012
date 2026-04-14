@@ -2,12 +2,12 @@ import React, { useEffect, useState } from "react";
 import Avatar from "../common/Avatar";
 import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Video } from "lucide-react";
 import { getCallHistory } from "../../api/calls";
-import { useCall } from "../../context/CallContext";
+import { useWebRTCCall } from "../../context/useWebRTCCall";
 
 const CallsPanel = () => {
   const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { startCall: startCallFromContext } = useCall();
+  const { startOutgoingCall, state: callState } = useWebRTCCall();
 
   useEffect(() => {
     loadCallHistory();
@@ -27,10 +27,15 @@ const CallsPanel = () => {
   };
 
   const handleCallBack = (call, type) => {
+    if (callState !== "IDLE") return;
     const contactId = call.contactId ?? call.contact?._id;
     const contactName = call.contactName ?? call.contact?.username ?? "User";
     if (!contactId) return;
-    startCallFromContext(type, contactId, contactName);
+    startOutgoingCall({
+      toUserId: contactId,
+      type: type === "video" ? "video" : "voice",
+      peerName: contactName,
+    });
   };
 
   const getCallIcon = (direction, status) => {
