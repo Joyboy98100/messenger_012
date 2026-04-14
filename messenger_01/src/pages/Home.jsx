@@ -131,10 +131,31 @@ const Home = () => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [floatingDateLabel, setFloatingDateLabel] = useState("");
   const [unreadSeparatorMessageId, setUnreadSeparatorMessageId] = useState(null);
+  const [mobileNavPage, setMobileNavPage] = useState(0);
+  const [mobileNavPages, setMobileNavPages] = useState(1);
+  const mobileNavScrollRef = useRef(null);
   const isAtBottomRef = useRef(true);
   const [currentScrollTop, setCurrentScrollTop] = useState(0);
   const scrollRafRef = useRef(null);
   const lastActiveChatIdRef = useRef(null);
+
+  useEffect(() => {
+    const updateMobileNavPagination = () => {
+      const el = mobileNavScrollRef.current;
+      if (!el) return;
+      const pageWidth = Math.max(el.clientWidth, 1);
+      const total = Math.max(1, Math.ceil(el.scrollWidth / pageWidth));
+      const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+      const progress = maxScroll > 0 ? el.scrollLeft / maxScroll : 0;
+      const page = Math.round(progress * (total - 1));
+      setMobileNavPages(total);
+      setMobileNavPage(page);
+    };
+
+    updateMobileNavPagination();
+    window.addEventListener("resize", updateMobileNavPagination);
+    return () => window.removeEventListener("resize", updateMobileNavPagination);
+  }, []);
 
   const queueConversationCacheWrite = useCallback((conversationId, list) => {
     if (!conversationId || !Array.isArray(list)) return;
@@ -2614,7 +2635,20 @@ const Home = () => {
 
       {/* Mobile/Tablet Bottom Navigation — horizontal slider */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-neutral-800 border-t border-gray-200 dark:border-neutral-700 py-1 pb-[env(safe-area-inset-bottom)]">
-        <div className="flex items-center overflow-x-auto px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div
+          ref={mobileNavScrollRef}
+          onScroll={() => {
+            const el = mobileNavScrollRef.current;
+            if (!el) return;
+            const pageWidth = Math.max(el.clientWidth, 1);
+            const total = Math.max(1, Math.ceil(el.scrollWidth / pageWidth));
+            const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+            const progress = maxScroll > 0 ? el.scrollLeft / maxScroll : 0;
+            setMobileNavPages(total);
+            setMobileNavPage(Math.round(progress * (total - 1)));
+          }}
+          className="flex items-center overflow-x-auto px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
         <button
           type="button"
           onClick={() => { setActiveView("chats"); setActivePanel(null); setSidebarOpen((o) => !o); }}
@@ -2672,6 +2706,20 @@ const Home = () => {
           <span className="text-[10px] font-medium">Discover</span>
         </button>
         </div>
+        {mobileNavPages > 1 && (
+          <div className="flex items-center justify-center gap-1.5 pb-0.5 pt-0.5">
+            {Array.from({ length: mobileNavPages }).map((_, index) => (
+              <span
+                key={`mobile-nav-dot-${index}`}
+                className={`h-1.5 rounded-full transition-all duration-200 ${
+                  mobileNavPage === index
+                    ? "w-4 bg-emerald-500"
+                    : "w-1.5 bg-gray-300 dark:bg-neutral-600"
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
