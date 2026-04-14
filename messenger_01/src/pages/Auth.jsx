@@ -155,7 +155,7 @@ const Auth = () => {
             {isLogin && (
               <input
                 type="text"
-                placeholder="Email or Username"
+                placeholder="Username"
                 value={emailOrUsername}
                 onChange={(e) => setEmailOrUsername(e.target.value)}
                 className="p-3.5 rounded-full bg-gray-100 dark:bg-neutral-700 border border-gray-300 dark:border-neutral-600 text-gray-900 dark:text-neutral-100 placeholder:text-gray-400 dark:placeholder:text-neutral-400 outline-none w-full focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"

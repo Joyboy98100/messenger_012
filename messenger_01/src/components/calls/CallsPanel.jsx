@@ -3,6 +3,7 @@ import Avatar from "../common/Avatar";
 import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, Video } from "lucide-react";
 import { getCallHistory } from "../../api/calls";
 import { useWebRTCCall } from "../../context/useWebRTCCall";
+import { CallState } from "../../webrtc/callStateMachine";
 
 const CallsPanel = () => {
   const [calls, setCalls] = useState([]);
@@ -27,7 +28,7 @@ const CallsPanel = () => {
   };
 
   const handleCallBack = (call, type) => {
-    if (callState !== "IDLE") return;
+    if ([CallState.CALLING, CallState.RINGING, CallState.CONNECTED].includes(callState)) return;
     const contactId = call.contactId ?? call.contact?._id;
     const contactName = call.contactName ?? call.contact?.username ?? "User";
     if (!contactId) return;
