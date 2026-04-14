@@ -3,7 +3,6 @@ import Avatar from "../common/Avatar";
 import MessageSearchBar from "./MessageSearchBar";
 import { Menu, MoreVertical, Search, X, Phone, Video, User, Shield, ShieldOff } from "lucide-react";
 import { useWebRTCCall } from "../../context/useWebRTCCall";
-import { CallState } from "../../webrtc/callStateMachine";
 
 /* ─── helpers ─── */
 const formatLastSeen = (lastSeen) => {
@@ -63,7 +62,7 @@ const ChatHeader = ({
   const [showSearchBar, setShowSearchBar] = useState(false);
   const menuRef = useRef(null);
   const { startOutgoingCall, state: callState } = useWebRTCCall();
-  const callBusy = [CallState.CALLING, CallState.RINGING, CallState.CONNECTED].includes(callState);
+  const callBusy = callState !== "IDLE";
 
   /* close menu on outside click */
   const handleClickOutside = useCallback((e) => {

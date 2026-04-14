@@ -32,7 +32,6 @@ export function WebRTCCallProvider({ children }) {
   const [callQuality, setCallQuality] = useState("good");
   const [remoteVideoEnabled, setRemoteVideoEnabled] = useState(true);
   const [missedCalls, setMissedCalls] = useState([]);
-  const [lastError, setLastError] = useState("");
   const notificationRef = useRef(null);
 
   useEffect(() => {
@@ -69,9 +68,6 @@ export function WebRTCCallProvider({ children }) {
       onBusy: () => {
         setFsmContext((prev) => ({ ...prev, reason: "busy" }));
       },
-      onError: (message) => {
-        setLastError(String(message || "Call error"));
-      },
     });
 
     managerRef.current = manager;
@@ -91,7 +87,6 @@ export function WebRTCCallProvider({ children }) {
       callQuality,
       remoteVideoEnabled,
       missedCalls,
-      lastError,
       attachMediaElements: (elements) => manager?.attachElements(elements),
       startOutgoingCall: (data) => manager?.startOutgoingCall(data),
       cancelOutgoingCall: () => manager?.cancelOutgoingCall(),
@@ -123,7 +118,6 @@ export function WebRTCCallProvider({ children }) {
           setSpeakerOn(true);
         }
       },
-      clearLastError: () => setLastError(""),
     };
   }, [
     fsmState,
@@ -136,7 +130,6 @@ export function WebRTCCallProvider({ children }) {
     callQuality,
     remoteVideoEnabled,
     missedCalls,
-    lastError,
   ]);
 
   return <WebRTCCallContext.Provider value={api}>{children}</WebRTCCallContext.Provider>;

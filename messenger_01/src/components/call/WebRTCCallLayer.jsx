@@ -26,20 +26,12 @@ export default function WebRTCCallLayer() {
     toggleSpeaker,
     switchCamera,
     endCall,
-    lastError,
-    clearLastError,
   } = useWebRTCCall();
 
   useEffect(() => {
     if (context.reason === "busy") toast.info("User is busy");
     if (context.reason === "network_failure") toast.error("Call ended due to network issue");
   }, [context.reason, toast]);
-
-  useEffect(() => {
-    if (!lastError) return;
-    toast.error(lastError);
-    clearLastError();
-  }, [lastError, toast, clearLastError]);
 
   return (
     <>

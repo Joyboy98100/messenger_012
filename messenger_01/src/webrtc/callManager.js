@@ -26,7 +26,6 @@ export class CallManager {
     onQualityChange,
     onMissedCall,
     onBusy,
-    onError,
     beaconEndpoint,
   }) {
     this.socket = socket;
@@ -35,7 +34,6 @@ export class CallManager {
     this.onQualityChange = onQualityChange || (() => {});
     this.onMissedCall = onMissedCall || (() => {});
     this.onBusy = onBusy || (() => {});
-    this.onError = onError || (() => {});
     this.beaconEndpoint = beaconEndpoint || "/api/calls/beacon-ended";
     this.localStream = null;
     this.remoteStream = null;
@@ -133,11 +131,6 @@ export class CallManager {
 
   async startOutgoingCall({ toUserId, type, peerName }) {
     if (this.fsm.state !== CallState.IDLE) return;
-    if (!this.socket.connected) {
-      this.onError("Socket disconnected. Reconnect and try again.");
-      this.fsm.reset();
-      return;
-    }
 
     const callType = type === "video" ? "video" : "voice";
     this.fsm.transition(
@@ -156,8 +149,7 @@ export class CallManager {
         this.onBusy({ toUserId: String(toUserId) });
         this.fsm.reset();
       } else {
-        this.onError(ack?.error || "Call failed to start");
-        this.fsm.reset();
+        this.fsm.safeTransition(CallState.FAILED, {}, ack?.error || "call:initiate failed");
       }
       return;
     }
